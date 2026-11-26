@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Surfaces and ink (zinc scale). Primary #FFFFFF, subtle sections #FAFAFA, hairlines #E4E4E7. */
+  --color-canvas: #ffffff;
+  --color-surface: #fafafa;
+  --color-hairline: #e4e4e7;
+  --color-ink: #09090b;
+  --color-ink-2: #52525b;
+
+  /* ONE brand accent: primary buttons, active tabs, focus rings. 6.7:1 on white. */
+  --color-accent: #1d4ed8;
+  --color-accent-strong: #1e40af;
+
+  /* Score tiers: darker than the old dark-theme set so they read on white (all >= 4.5:1). */
+  --color-tier-high: #15803d;
+  --color-tier-mid: #b45309;
+  --color-tier-low: #be123c;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  letter-spacing: -0.005em;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.025em;
+}
+
+/* Numbers line up everywhere. */
+.tabular,
+[class*="tabular-nums"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cards: white, hairline border, no glow. */
+.card-surface {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(9 9 11 / 0.04);
+}
+
+/* Monospace section tag: "[01] features" */
+.section-tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #71717a;
+  text-transform: lowercase;
+}
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+@keyframes tg-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-up {
+  animation: tg-fade-up 0.25s ease-out both;
+}
+
+/* People who ask for less motion get (almost) none from CSS animations too */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
