@@ -1,0 +1,29 @@
+<!doctype html><html><body style="font-family:sans-serif">
+<header>
+  <div class="search">
+    <label for="kw">Keywords</label>
+    <div class="kwbox"><span class="chip">Java</span><span class="chip">Kubernetes</span><input id="kw" placeholder="Enter keywords like skills, designation" value=""></div>
+    <input id="excl" placeholder="Exclude keywords" value="">
+    <input id="loc" placeholder="Current location" value="Bengaluru">
+    <div class="exp"><span>Experience</span><input aria-label="Min experience (years)" value="5"><input aria-label="Max experience (years)" value="9"></div>
+    <div class="sal"><span>Salary</span><input aria-label="Min salary (Lacs)" value=""><input aria-label="Max salary (Lacs)" value="30"></div>
+    <button id="go">Search</button>
+  </div>
+</header>
+<aside id="filters">
+  <section><h4>Notice period</h4>
+    <label><input type="checkbox" id="np15"> 15 days or less</label>
+    <label><input type="checkbox" id="np30"> 30 days or less</label></section>
+  <section><h4>Gender</h4><label><input type="radio" name="g" id="gf"> Female</label></section>
+  <section><h4>Education</h4><div role="checkbox" aria-checked="false" id="ed" tabindex="0">B.Tech</div></section>
+</aside>
+<main id="results"></main>
+<script>
+const people = [["Priya Nair","Java Developer","Acme"],["Vikram Shah","Java Lead","Globex"],["Meera Iyer","Backend Engineer","Initech"]];
+function render(set){ document.getElementById('results').innerHTML = people.map(([n,r,c],i)=>`<div class="card"><h3><a href="/profile/${set}${i}">${n} ${set}</a></h3>
+<p>${r} at ${c} — ${6+i} Yrs ${i} Months | ${20+i*5} Lacs | Notice period: ${i?30:15} days</p><p>Current location: Bengaluru / Pune. Preferred: Hyderabad</p>
+<p>Key skills: Java, Spring Boot, Kubernetes, Kafka, Microservices, AWS, SQL, Docker. Designation: ${r}. B.Tech Computer Science, IIT.</p></div>`).join('');}
+render('a');
+document.getElementById('go').onclick = () => { history.pushState({}, '', '/search?q='+encodeURIComponent(document.getElementById('kw').value)+'&page=1'); render('b'); };
+document.getElementById('ed').onclick = (e) => { const t=e.target; t.setAttribute('aria-checked', t.getAttribute('aria-checked')==='true'?'false':'true'); };
+</script></body></html>

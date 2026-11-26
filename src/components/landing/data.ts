@@ -8,9 +8,9 @@ export type SourceId = "naukri" | "linkedin" | "cutshort" | "github";
 
 export const SOURCE_LABEL: Record<SourceId, string> = { naukri: "Naukri", linkedin: "LinkedIn", cutshort: "Cutshort", github: "GitHub" };
 
-/** The one standard weighting shown on the page and used by the demo. Set it to match the real scoring model. */
-export const STANDARD_WEIGHTS = { skills: 60, experience: 25, location: 15 } as const;
-export const WEIGHTS_LABEL = `skills ${STANDARD_WEIGHTS.skills}, experience ${STANDARD_WEIGHTS.experience}, location ${STANDARD_WEIGHTS.location}`;
+/** The platform's real standard weighting (src/server/ai/heuristic.ts SCORE_WEIGHTS), shown on the page and used by the demo. */
+export const STANDARD_WEIGHTS = { skills: 40, experience: 30, impact: 15, industry: 15 } as const;
+export const WEIGHTS_LABEL = `skills ${STANDARD_WEIGHTS.skills}, experience ${STANDARD_WEIGHTS.experience}, impact ${STANDARD_WEIGHTS.impact}, industry ${STANDARD_WEIGHTS.industry}`;
 
 export const DEMO_HREF = "mailto:demo@talentgraph.dev?subject=TalentGraph%20demo";
 export const APP_HREF = "/pipeline";

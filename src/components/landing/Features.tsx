@@ -76,7 +76,7 @@ function AlignPreview() {
       </div>
       <div className="mt-4 flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
         <span className="font-mono tracking-wider">WEIGHTS</span>
-        <span className="tabular-nums">Skills {STANDARD_WEIGHTS.skills} · Experience {STANDARD_WEIGHTS.experience} · Location {STANDARD_WEIGHTS.location}</span>
+        <span className="tabular-nums">Skills {STANDARD_WEIGHTS.skills} · Experience {STANDARD_WEIGHTS.experience} · Impact {STANDARD_WEIGHTS.impact} · Industry {STANDARD_WEIGHTS.industry}</span>
       </div>
     </div>
   );

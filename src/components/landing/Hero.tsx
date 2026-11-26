@@ -199,7 +199,7 @@ export function Hero() {
                         {parsed.years ? ` · ${parsed.years}+ yrs` : ""}
                         {parsed.cities.length ? ` · ${parsed.cities.map((city) => city.charAt(0).toUpperCase() + city.slice(1)).join(", ")}` : ""}
                       </span>
-                      <span className="font-mono text-[11px] tracking-wider text-zinc-500">SKILLS {STANDARD_WEIGHTS.skills} · EXPERIENCE {STANDARD_WEIGHTS.experience} · LOCATION {STANDARD_WEIGHTS.location}</span>
+                      <span className="font-mono text-[11px] tracking-wider text-zinc-500">SKILLS {STANDARD_WEIGHTS.skills} · EXPERIENCE {STANDARD_WEIGHTS.experience} · IMPACT {STANDARD_WEIGHTS.impact} · INDUSTRY {STANDARD_WEIGHTS.industry}</span>
                     </div>
                     <ul className="flex flex-col gap-2">
                       {top.map(({ candidate, score, matched, missing }, index) => (

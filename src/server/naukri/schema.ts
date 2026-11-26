@@ -76,3 +76,16 @@ export function naukriProfileText(payload: ShortlistPayload): string {
     .filter(Boolean)
     .join("\n");
 }
+
+const djb = (s: string) => {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+};
+const clean = (s: unknown) => String(s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+/** Stable key of a PERSON: identical for the list card and the opened profile, different for different people. */
+export function personKey(p: { fullName?: string | null; currentCompany?: string | null; expYears?: number | null }): string {
+  const exp = typeof p.expYears === "number" && p.expYears >= 0 ? Math.round(p.expYears) : "x";
+  return `xs_${djb(`${clean(p.fullName)}|${clean(p.currentCompany)}|${exp}`)}${djb(`${exp}|${clean(p.currentCompany)}|${clean(p.fullName)}`)}`;
+}

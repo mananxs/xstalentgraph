@@ -35,9 +35,13 @@ export function rankCandidates(prompt: string, sources: ReadonlySet<SourceId>): 
       const matched = parsed.skills.filter((skill) => candidate.skills.includes(skill));
       const missing = parsed.skills.filter((skill) => !candidate.skills.includes(skill));
       const skillPart = (matched.length / parsed.skills.length) * STANDARD_WEIGHTS.skills;
-      const experiencePart = parsed.years === null ? STANDARD_WEIGHTS.experience : candidate.years >= parsed.years ? STANDARD_WEIGHTS.experience : Math.max(0, STANDARD_WEIGHTS.experience - (parsed.years - candidate.years) * 8);
-      const locationPart = parsed.cities.length === 0 || parsed.cities.includes(candidate.city.toLowerCase()) ? STANDARD_WEIGHTS.location : 0;
-      return { candidate, matched, missing, score: Math.round(skillPart + experiencePart + locationPart) };
+      const experiencePart =
+        parsed.years === null || candidate.years >= parsed.years ? STANDARD_WEIGHTS.experience : Math.max(0, STANDARD_WEIGHTS.experience - (parsed.years - candidate.years) * 8);
+      // Demo stand-ins for the two softer dimensions (the real model reads achievements and domain from the profile text).
+      const impactPart = Math.min(1, 0.5 + candidate.years / 20) * STANDARD_WEIGHTS.impact;
+      const industryPart = 0.7 * STANDARD_WEIGHTS.industry;
+      const cityPenalty = parsed.cities.length > 0 && !parsed.cities.includes(candidate.city.toLowerCase()) ? 10 : 0;
+      return { candidate, matched, missing, score: Math.max(0, Math.round(skillPart + experiencePart + impactPart + industryPart - cityPenalty)) };
     })
     .filter((row) => row.matched.length > 0)
     .sort((a, b) => b.score - a.score || b.matched.length - a.matched.length || a.candidate.name.localeCompare(b.candidate.name));

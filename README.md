@@ -11,7 +11,14 @@
 >   `npm run user:create -- you@company.com "Your Name" "a-long-password"` (run it with the production `DATABASE_URL`). Run
 >   `npx prisma migrate deploy` first (adds `passwordHash`). On Vercel keep `DEV_AUTH=false`; `AUTH_SECRET` is optional
 >   (defaults to `TOKEN_ENCRYPTION_KEY`).
-> - The extension modules that complete the loop are in `extension-patch/`.
+> - **The Naukri extension now uses TalentGraph as its ONLY backend** (`extension/` folder, build with `npm install && npm run build`,
+>   load `extension/dist` in Chrome). TalentGraph serves everything the extension used to get from its own web app, under
+>   `/api/extension/*`: login (email + password, personal keys), jobs + rubric + Resdex search plan, JD to job, card scoring with a
+>   per-job cache, deep audit, search sessions and the Analyzed list, save-to-shortlist, and CV upload. Cards scored in Naukri appear
+>   in `/pipeline`, saved ones in `/shortlists`, and resumes open at `/candidates/:id`.
+>   In the extension panel: enter this site's URL, then log in with your TalentGraph email and password (or paste a key from
+>   Settings > "Create an extension key"). Needs `npx prisma migrate deploy` (adds `api_keys`, `search_sessions`, `card_scores`).
+>   Contract tests: `cd extension && TG_URL=... TG_EMAIL=... TG_PASSWORD=... npm run test:backend`.
 
 > **What's new in this version**
 > - **Ratings never get stuck on "Failed".** Every AI problem (wrong/retired model name, invalid key, quota, overload,

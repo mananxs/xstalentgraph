@@ -33,8 +33,9 @@ export async function GET(): Promise<Response> {
       : { id: "linkedin", name: "LinkedIn", status: "connected", detail: "Profiles found with Google X-Ray search (Apify); phone numbers read free from search snippets" };
 
     const naukriCount = await prisma.candidate.count({ where: { source: "naukri" } }).catch(() => 0);
-    const naukri: IntegrationDto = !env.EXTENSION_API_KEY
-      ? { id: "naukri", name: "Naukri", status: "not_connected", detail: "Set EXTENSION_API_KEY in .env, restart, then paste it into the XS-NaukriAI extension." }
+    const extensionKeys = await prisma.apiKey.count().catch(() => 0);
+    const naukri: IntegrationDto = !env.EXTENSION_API_KEY && extensionKeys === 0 && naukriCount === 0
+      ? { id: "naukri", name: "Naukri", status: "not_connected", detail: "Open the XS-NaukriAI extension, enter this site's URL and log in with your TalentGraph email and password." }
       : {
           id: "naukri",
           name: "Naukri",

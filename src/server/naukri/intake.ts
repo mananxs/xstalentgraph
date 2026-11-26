@@ -15,6 +15,8 @@ export interface IntakeResult {
   jobId: string;
   jobTitle: string;
   created: boolean;
+  /** A list-card save arrived for a person whose full profile was already saved: the profile was kept untouched. */
+  keptFullProfile: boolean;
   /** file = original PDF/DOC stored; text = only the CV text stored; none = no resume reached the platform. */
   resume: "file" | "text" | "none";
   /** Human-readable reason when `resume` is not "file". The extension shows it to the recruiter. */
@@ -62,6 +64,8 @@ export async function saveNaukriShortlist(params: {
   recruiter: RecruiterContext;
   payload: ShortlistPayload;
   resume: { name: string; buffer: Buffer } | null;
+  /** card = a Resdex list card (never overwrites a saved full profile) · profile = the opened profile. Default card. */
+  mode?: "card" | "profile";
 }): Promise<IntakeResult> {
   const { recruiter, payload } = params;
   const job = await resolveJob(recruiter, payload.job);
@@ -124,13 +128,18 @@ export async function saveNaukriShortlist(params: {
     lastIngestedAt: new Date(),
   };
 
-  const before = await prisma.candidate.findUnique({ where: { naukriId: key }, select: { id: true, resumeData: true, resumeText: true } });
-  const saved = await prisma.candidate.upsert({
-    where: { naukriId: key },
-    create: { ...base, naukriId: key, ...resumeFields },
-    update: { ...base, ...resumeFields },
-    select: { id: true, resumeData: true, resumeText: true },
-  });
+  const mode = params.mode ?? "card";
+  const before = await prisma.candidate.findUnique({ where: { naukriId: key }, select: { id: true, fullProfile: true } });
+  const keptFullProfile = mode === "card" && before?.fullProfile === true;
+  const select = { id: true, resumeData: true, resumeText: true } as const;
+  const saved = keptFullProfile
+    ? await prisma.candidate.findUniqueOrThrow({ where: { naukriId: key }, select })
+    : await prisma.candidate.upsert({
+        where: { naukriId: key },
+        create: { ...base, naukriId: key, ...resumeFields, fullProfile: mode === "profile" },
+        update: { ...base, ...resumeFields, ...(mode === "profile" ? { fullProfile: true } : {}) },
+        select,
+      });
 
   const match = await prisma.matchScore.upsert({
     where: { jobId_candidateId: { jobId: job.id, candidateId: saved.id } },
@@ -168,6 +177,7 @@ export async function saveNaukriShortlist(params: {
     jobId: job.id,
     jobTitle: job.title,
     created: !before,
+    keptFullProfile,
     resume: stored,
     resumeWarning: stored === "file" ? null : warning,
     profilePath: `/candidates/${saved.id}?job=${job.id}`,

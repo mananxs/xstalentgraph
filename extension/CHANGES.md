@@ -1,0 +1,35 @@
+# XS-NaukriAI 1.2: what changed
+
+Load the extension from `dist/` (chrome://extensions -> Developer mode -> Load unpacked). The same files are also copied to the
+project root, so loading the root folder works too. Rebuild with `npm run build`.
+
+## 1. Same name / info on different cards  (fixed)
+Cause: the AI scorer sometimes answered several cards of one batch with ONE candidate's name, verdict and skills, and the panel
+trusted it. Now every result is checked against the card's own text (name, and company when present). A mismatching result is
+never shown, cached or saved; the card is re-scored on its own, and if it still does not match it shows an error instead of
+someone else's data. A stale entry left behind when Resdex re-uses a card element for a different person is also dropped.
+Save is refused for a mismatching card, so a wrong person can never reach the shortlist or the platform.
+Files: `src/shared/util.ts` (`resultMatchesCard`), `src/content/resdex-observer.ts`, `LiveRankingTab.tsx`, `service-worker.ts`.
+
+## 2. Start / Stop scoring (red -> green)  (new)
+Big button at the top of the panel. Red = STOPPED: no card is sent to the AI (analyzed ones still show from cache). Green =
+SCORING. Pressing Stop mid-run halts at the next batch. It is forced back to red on browser start, update and login/logout.
+Files: `ScoringToggle.tsx`, `Settings.scoring`.
+
+## 3. "Customize scoring for this job" removed
+Panel block, component and the `SAVE_JOB_EDITS` message are gone; scoring uses the server's standard rubric for everyone.
+
+## 4. TalentGraph is now the extension's ONLY backend  (new)
+The extension no longer needs its old web app. Log in with your TalentGraph email + password (panel -> Platform URL = your TalentGraph
+site), or paste a key from TalentGraph Settings. Jobs, rubric, scoring, Analyzed, search sessions, shortlist and CV upload are all served by
+TalentGraph at `/api/extension/*`; everything you save shows up in its Pipeline and Shortlists, and each CV opens inside the platform
+(`/candidates/:id`), so nothing links back to a Naukri URL that would 404. Attach CV still runs only when you press it.
+
+## Tests
+`npm run test:unit`, and with Playwright (`NODE_PATH=$(npm root -g)`): `node tests/scoring.test.cjs`, `content.test.cjs`, `fill.test.cjs`.
+`TG_URL=... TG_EMAIL=... TG_PASSWORD=... npm run test:backend` runs the full contract against a live TalentGraph.
+
+## Not changed / open
+* "Auto fill": the existing fill and auto-sync tests pass and I could not reproduce a fault from the code alone. Tell me what
+  you see (what is typed where, and what you expected) and I will fix that exact case.
+* A CV download can use your Resdex credit/quota; it only happens on the button press.

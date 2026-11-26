@@ -30,7 +30,8 @@ function CalibrationCard() {
   const rows = [
     ["Skills", STANDARD_WEIGHTS.skills],
     ["Experience", STANDARD_WEIGHTS.experience],
-    ["Location", STANDARD_WEIGHTS.location],
+    ["Impact", STANDARD_WEIGHTS.impact],
+    ["Industry", STANDARD_WEIGHTS.industry],
   ] as const;
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-3 text-xs">

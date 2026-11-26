@@ -63,6 +63,9 @@ model Recruiter {
   jobs             JobDescription[]
   ingestionBatches IngestionBatch[]
   resumeUploads    ResumeCandidate[]
+  apiKeys          ApiKey[]
+  searchSessions   SearchSession[]
+  cardScores       CardScore[]
 
   @@index([organizationId])
   @@index([createdAt])
@@ -124,6 +127,8 @@ model JobDescription {
   batches          IngestionBatch[]
   matchScores      MatchScore[]
   resumeCandidates ResumeCandidate[]
+  searchSessions   SearchSession[]
+  cardScores       CardScore[]
 
   @@index([organizationId, createdAt])
   @@index([createdById])
@@ -153,6 +158,8 @@ model Candidate {
   resumeData      Bytes?
   resumeText      String?                      @db.Text
   resumeCapturedAt DateTime?                   @db.Timestamptz(3)
+  /// true once the full Resdex profile was saved (the list-card save must not overwrite it).
+  fullProfile     Boolean                      @default(false)
   /// GitHub login, or the LinkedIn public identifier for LinkedIn candidates.
   login           String
   headline        String?
@@ -300,4 +307,61 @@ model ResumeCandidate {
   @@index([jobId, shortlisted])
   @@index([uploadedById])
   @@map("resume_candidates")
+}
+
+/// Personal key of one recruiter for the Naukri extension (only the SHA-256 hash is stored; the key is shown once).
+model ApiKey {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruiterId String    @db.Uuid
+  keyHash     String    @unique
+  label       String    @default("Naukri extension")
+  lastUsedAt  DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  recruiter Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@index([recruiterId])
+  @@map("api_keys")
+}
+
+/// The Naukri search that produced a set of result cards, so "Analyzed" can be listed per search.
+model SearchSession {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId       String   @db.Uuid
+  recruiterId String   @db.Uuid
+  signature   String
+  label       String
+  state       Json     @default("{}")
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  job       JobDescription @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  recruiter Recruiter      @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, recruiterId, signature])
+  @@map("search_sessions")
+}
+
+/// One scored Resdex card ("card") or deep-audited profile ("deep") of one recruiter for one job. Cached per rubric version.
+model CardScore {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId       String   @db.Uuid
+  recruiterId String   @db.Uuid
+  /// Profile URL when the card has one, else a fingerprint of the card text.
+  cardKey     String
+  kind        String   @default("card")
+  rubricHash  String
+  score       Int
+  displayName String?
+  profileUrl  String?
+  result      Json
+  sessionIds  String[] @default([])
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  job       JobDescription @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  recruiter Recruiter      @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, recruiterId, cardKey, kind])
+  @@index([jobId, recruiterId, rubricHash])
+  @@map("card_scores")
 }

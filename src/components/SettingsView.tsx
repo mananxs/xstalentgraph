@@ -51,15 +51,7 @@ export function SettingsView() {
             <Row label="Embedded in the web server" value={status.worker.embedded ? "Yes" : "No (run npm run worker)"} />
           </Card>
           <Card icon={<Puzzle className="size-5" aria-hidden="true" />} title="Naukri extension (XS-NaukriAI)">
-            <Row label="Platform URL" value={typeof window === "undefined" ? "" : window.location.origin} />
-            <Row label="Endpoint" value="/api/ext/shortlist" />
-            <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-zinc-600">
-              <li>
-                Add <code className="rounded bg-zinc-100 px-1 text-zinc-800">EXTENSION_API_KEY=&lt;16+ random characters&gt;</code> to <code className="rounded bg-zinc-100 px-1 text-zinc-800">.env</code> and restart.
-              </li>
-              <li>Paste the same key and the platform URL into the extension&apos;s Platform tab.</li>
-              <li>Save Card to Shortlist now uploads the card, the score and the resume file here.</li>
-            </ol>
+            <ExtensionKey />
           </Card>
           <Card icon={<PauseCircle className="size-5" aria-hidden="true" />} title="Account">
             <p className="text-sm text-zinc-600">Team members, sign-in and per-user settings arrive together with real sign-in (Auth.js).</p>
@@ -88,5 +80,57 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-zinc-500">{label}</span>
       <span className="text-right text-zinc-800">{value}</span>
     </p>
+  );
+}
+
+/** Creates a personal key for the extension. Shown once; the extension logs in with email + password too. */
+function ExtensionKey() {
+  const [key, setKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function create() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/extension-keys", { method: "POST" });
+      const body = (await response.json().catch(() => ({}))) as { apiKey?: string; error?: string };
+      if (!response.ok || !body.apiKey) throw new Error(body.error ?? "Could not create a key.");
+      setKey(body.apiKey);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not create a key.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Row label="Platform URL" value={typeof window === "undefined" ? "" : window.location.origin} />
+      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-zinc-600">
+        <li>In the extension panel, enter this Platform URL.</li>
+        <li>Log in with your TalentGraph email and password, or paste a key created below.</li>
+        <li>Jobs, scoring, analyzed lists, shortlists and CVs all live here.</li>
+      </ol>
+      {key ? (
+        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <p className="font-medium text-emerald-900">Copy it now: it is shown only once.</p>
+          <code className="mt-1 block break-all rounded bg-white px-2 py-1 text-xs text-zinc-900">{key}</code>
+          <button
+            type="button"
+            className="mt-2 text-xs font-medium text-emerald-800 hover:underline"
+            onClick={() => void navigator.clipboard.writeText(key).then(() => setCopied(true))}
+          >
+            {copied ? "Copied" : "Copy key"}
+          </button>
+        </div>
+      ) : (
+        <button type="button" disabled={busy} onClick={() => void create()} className="mt-3 inline-flex h-9 items-center rounded-lg border border-zinc-200 px-3 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-60">
+          {busy ? "Creating…" : "Create an extension key"}
+        </button>
+      )}
+      {error && <p className="mt-2 text-sm text-tier-low">{error}</p>}
+    </>
   );
 }
