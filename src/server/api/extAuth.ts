@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { ApiError } from "@/server/api/http";
 import { getEnv } from "@/server/env";
-import { findRecruiterByEmail, type RecruiterContext } from "@/server/repositories/recruiterRepository";
+import { ensureOpenRecruiter, findRecruiterByEmail, type RecruiterContext } from "@/server/repositories/recruiterRepository";
 
 /** Origins allowed to call /api/ext/*: the extension itself, Resdex (content scripts) and local dev. */
 function originAllowed(origin: string | null): origin is string {
@@ -51,7 +51,7 @@ export async function requireExtension(request: Request): Promise<RecruiterConte
     throw new ApiError(401, "Wrong or missing extension key. Paste the key from Settings > Naukri extension.");
   }
   const email = env.EXTENSION_RECRUITER_EMAIL ?? env.DEV_RECRUITER_EMAIL;
-  const recruiter = await findRecruiterByEmail(email);
+  const recruiter = env.OPEN_ACCESS ? await ensureOpenRecruiter(email) : await findRecruiterByEmail(email);
   if (!recruiter) throw new ApiError(500, `No recruiter with email ${email}. Run: npx prisma db seed`);
   return recruiter;
 }

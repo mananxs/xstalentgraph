@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, Briefcase, FileSearch, LayoutDashboard, Plug, Settings } from "lucide-react";
+import { Bookmark, Briefcase, FileSearch, LayoutDashboard, LogOut, Plug, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -70,6 +70,18 @@ export function Sidebar() {
       <div className="border-t border-zinc-200 pt-3">
         <IntegrationsMini />
         <IntegrationsIcons />
+        <button
+          type="button"
+          title="Sign out"
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+            window.location.assign("/login");
+          }}
+          className="mx-2 mb-3 flex h-9 w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-2.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+        >
+          <LogOut className="size-4 shrink-0" aria-hidden="true" />
+          <span className="hidden md:block">Sign out</span>
+        </button>
       </div>
     </aside>
   );

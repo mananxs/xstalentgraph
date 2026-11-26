@@ -14,8 +14,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "github:smoke": "tsx --env-file=.env scripts/github-smoke.ts",
-    "test": "tsx --test src/server/*/*.test.ts src/server/*/*/*/*.test.ts src/lib/*.test.ts src/components/landing/*.test.ts",
-    "worker": "tsx --env-file=.env src/worker/index.ts"
+    "test": "tsx --test src/server/*/*.test.ts src/server/*/*/*/*.test.ts src/lib/*.test.ts src/components/landing/*.test.ts src/server/*.test.ts",
+    "worker": "tsx --env-file=.env src/worker/index.ts",
+    "user:create": "tsx --env-file=.env scripts/create-user.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

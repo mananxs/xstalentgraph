@@ -52,6 +52,13 @@ const envSchema = z.object({
   EXTENSION_API_KEY: z.string().min(16).optional(),
   /** Recruiter that extension uploads belong to (defaults to DEV_RECRUITER_EMAIL). */
   EXTENSION_RECRUITER_EMAIL: z.string().email().optional(),
+  /** Signs the login cookie. Defaults to TOKEN_ENCRYPTION_KEY, so login works without extra setup. */
+  AUTH_SECRET: z.string().min(16).optional(),
+  /** TEMPORARY testing switch: no login at all, everyone who can open the site acts as one recruiter. Anyone with the URL sees all data. */
+  OPEN_ACCESS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   DEV_AUTH: z
     .enum(["true", "false"])
     .default("false")

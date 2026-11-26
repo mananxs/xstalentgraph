@@ -7,6 +7,10 @@
 >   inside the platform, so resume links never 404. `GET /api/candidates/:id/resume` serves it; `/candidates/:id` shows it.
 >   Set `EXTENSION_API_KEY` (16+ random characters) in `.env`, restart, and paste the same key into the extension.
 >   Optional: `EXTENSION_RECRUITER_EMAIL` (defaults to `DEV_RECRUITER_EMAIL`). Run `npx prisma migrate deploy` for the new columns.
+> - **Login (email + password).** `/login`, signed httpOnly cookie, per-recruiter accounts. Create users with
+>   `npm run user:create -- you@company.com "Your Name" "a-long-password"` (run it with the production `DATABASE_URL`). Run
+>   `npx prisma migrate deploy` first (adds `passwordHash`). On Vercel keep `DEV_AUTH=false`; `AUTH_SECRET` is optional
+>   (defaults to `TOKEN_ENCRYPTION_KEY`).
 > - The extension modules that complete the loop are in `extension-patch/`.
 
 > **What's new in this version**
