@@ -51,8 +51,8 @@ export default function AuthGate() {
   return (
     <form onSubmit={submit} className="mx-auto mt-6 max-w-sm space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div>
-        <h1 className="text-base font-semibold">Log in to TalentGraph</h1>
-        <p className="text-xs text-slate-500">Use your TalentGraph account. Jobs, scoring, shortlists and CVs all live there.</p>
+        <h1 className="text-base font-semibold">Log in to XS-Hunt</h1>
+        <p className="text-xs text-slate-500">Use your XS-Hunt account. Jobs, scoring, shortlists and CVs all live there.</p>
       </div>
       <div className="grid grid-cols-2 rounded-lg bg-slate-200 p-0.5 text-[12px] font-medium">
         {(
@@ -83,7 +83,7 @@ export default function AuthGate() {
         </>
       ) : (
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-slate-600">Extension key (TalentGraph → Settings → Create an extension key)</span>
+          <span className="mb-1 block text-xs font-medium text-slate-600">Extension key (XS-Hunt → Settings → Create an extension key)</span>
           <input className="input font-mono" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="tgx_…" required />
         </label>
       )}

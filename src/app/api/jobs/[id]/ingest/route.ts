@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireWriter } from "@/server/auth";
 import { ApiError, handleRoute, jsonOk } from "@/server/api/http";
 import { requireJobAccess } from "@/server/api/guards";
 import { getEnv } from "@/server/env";
@@ -29,6 +30,7 @@ const bodySchema = z.object({
  */
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     const { id } = await context.params;
     const { recruiter, job } = await requireJobAccess(id);
 

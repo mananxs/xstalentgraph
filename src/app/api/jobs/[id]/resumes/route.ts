@@ -1,4 +1,5 @@
 import { ApiError, handleRoute, jsonOk } from "@/server/api/http";
+import { requireWriter } from "@/server/auth";
 import { requireJobAccess } from "@/server/api/guards";
 import { fileToText, readUpload } from "@/server/files/parse";
 import { createLogger } from "@/server/logger";
@@ -28,6 +29,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
  */
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     const { id } = await context.params;
     const { recruiter, job } = await requireJobAccess(id);
 

@@ -6,7 +6,7 @@ const term = (value: string) => (/\s/.test(value.trim()) ? `"${value.trim()}"` :
 const unique = (items: string[]) => [...new Set(items.map((item) => item.trim()).filter(Boolean))];
 
 /** Fingerprint of everything that changes a score. When a job is edited, cached scores under the old hash stop matching. */
-export function rubricHash(job: JobDetails): string {
+export function rubricHash(job: JobDetails, rubricVersion = 0): string {
   const description = createHash("sha1").update(job.description ?? "").digest("hex");
   const basis = {
     t: job.title,
@@ -17,6 +17,7 @@ export function rubricHash(job: JobDetails): string {
     y: job.experienceYears,
     s: job.seniority,
     d: description,
+    v: rubricVersion,
   };
   return createHash("sha1").update(JSON.stringify(basis)).digest("hex").slice(0, 16);
 }
@@ -73,7 +74,7 @@ export function rubricOf(job: JobDetails): Rubric {
   };
 }
 
-export function jobSummary(job: JobDetails, candidateCount: number): JobSummary {
+export function jobSummary(job: JobDetails, candidateCount: number, rubricVersion = 0): JobSummary {
   return {
     id: job.id,
     title: job.title,
@@ -81,7 +82,7 @@ export function jobSummary(job: JobDetails, candidateCount: number): JobSummary 
     location: job.locations[0] ?? null,
     candidateCount,
     rubric: rubricOf(job),
-    rubricHash: rubricHash(job),
+    rubricHash: rubricHash(job, rubricVersion),
     search: resdexPlan(job),
   };
 }

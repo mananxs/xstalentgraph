@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireWriter } from "@/server/auth";
 import { ApiError, handleRoute, jsonOk } from "@/server/api/http";
 import { requireResumeAccess } from "@/server/api/resumeGuard";
 import { deleteResume, resumeLabel, toResumeDto, updateResume } from "@/server/repositories/resumeRepository";
@@ -24,6 +25,7 @@ const patchSchema = z.object({
 /** PATCH /api/resumes/:id - shortlist, or save hand-edited anonymized text. */
 export async function PATCH(request: Request, context: RouteContext): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     const { resumeId } = await context.params;
     const { recruiter, resume } = await requireResumeAccess(resumeId);
     const body = patchSchema.parse(await request.json().catch(() => ({})));
@@ -38,6 +40,7 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
 
 export async function DELETE(_request: Request, context: RouteContext): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     const { resumeId } = await context.params;
     const { recruiter, resume } = await requireResumeAccess(resumeId);
     await deleteResume(resume.id, recruiter.organizationId);

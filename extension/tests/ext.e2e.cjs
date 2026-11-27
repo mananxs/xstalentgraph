@@ -33,7 +33,7 @@ const html = fs.readFileSync(path.join(__dirname, "page.html"), "utf8");
   const panel = await ctx.newPage();
   panel.on("pageerror", (e) => console.log("PANEL ERROR", e.message));
   await panel.goto(`chrome-extension://${id}/sidepanel.html`);
-  await panel.waitForSelector("text=Log in to XS-NaukriAI");
+  await panel.waitForSelector("text=Log in to XS-Hunt");
   ok(true, "AuthGate renders (email/password + API-key tabs)");
   await panel.fill('input[placeholder="https://your-app.vercel.app"]', BASE);
   await panel.fill('input[autocomplete="username"]', "a@hr.test");
@@ -167,7 +167,7 @@ const html = fs.readFileSync(path.join(__dirname, "page.html"), "utf8");
   // ---- logout wipes everything; login as HR B sees nothing of HR A
   await panel.bringToFront();
   await panel.click('button:has-text("Log out")');
-  await panel.waitForSelector("text=Log in to XS-NaukriAI", { timeout: 8000 });
+  await panel.waitForSelector("text=Log in to XS-Hunt", { timeout: 8000 });
   const after = await panel.evaluate(async (t) => ({ local: await chrome.storage.local.get(null), session: await chrome.storage.session.get(null) }), tabId);
   console.log("AFTER-LOGOUT session:", JSON.stringify(Object.fromEntries(Object.entries(after.session).map(([k, v]) => [k, Array.isArray(v) ? `array(${v.length})` : typeof v === "object" ? Object.keys(v).join("/") : v]))));
   ok(!after.local.config && !after.local.activeJob && Object.values(after.session).every((v) => Array.isArray(v) && v.length === 0), `logout clears key, active job and every cached ranking/search (${Object.keys(after.local)})`);

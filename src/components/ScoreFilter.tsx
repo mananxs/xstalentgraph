@@ -16,7 +16,7 @@ export function ScoreFilter({ value, onChange }: ScoreFilterProps) {
         step={5}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-1.5 w-32 cursor-pointer accent-[#1d4ed8] sm:w-44"
+        className="h-1.5 w-32 cursor-pointer accent-[#4f46e5] sm:w-44"
       />
       <output htmlFor="min-score" className="w-8 tabular-nums text-zinc-950">
         {value}

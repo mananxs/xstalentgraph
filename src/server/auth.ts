@@ -34,3 +34,17 @@ export async function requireRecruiter(): Promise<RecruiterContext> {
   if (!recruiter) throw new ApiError(401, "You are not signed in.");
   return recruiter;
 }
+
+/** Same as requireRecruiter, but refuses read-only members ("viewer"). Use for every route that changes data. */
+export async function requireWriter(): Promise<RecruiterContext> {
+  const recruiter = await requireRecruiter();
+  if (recruiter.role === "viewer") throw new ApiError(403, "Your role is read-only. Ask an admin to change it.");
+  return recruiter;
+}
+
+/** Admin-only routes (team management). */
+export async function requireAdmin(): Promise<RecruiterContext> {
+  const recruiter = await requireRecruiter();
+  if (recruiter.role !== "admin") throw new ApiError(403, "Only an admin can do this.");
+  return recruiter;
+}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError } from "@/server/api/http";
+import { ensureRubric } from "@/server/hunt/store";
 import { extensionRoute } from "@/server/extension/route";
 import { jobSummary } from "@/server/extension/rubric";
 import { extractJd } from "@/server/jd/extract";
@@ -16,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
     const jobs = [];
     for (const row of rows.slice(0, 100)) {
       const job = await findJobInOrganization(row.id, recruiter.organizationId);
-      if (job) jobs.push(jobSummary(job, row.matchCount));
+      if (job) jobs.push(jobSummary(job, row.matchCount, (await ensureRubric(job, recruiter.id)).version));
     }
     return NextResponse.json({ jobs });
   });

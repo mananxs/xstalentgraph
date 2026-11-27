@@ -8,6 +8,7 @@ import { rubricHash } from "@/server/extension/rubric";
 import { scoreCard } from "@/server/extension/scoring";
 import type { CardResult } from "@/server/extension/types";
 import { uuidSchema } from "@/server/api/guards";
+import { ensureRubric } from "@/server/hunt/store";
 import { findJobInOrganization } from "@/server/repositories/jobRepository";
 import { normalizeName } from "@/server/extension/names";
 
@@ -32,7 +33,8 @@ export async function POST(request: Request): Promise<Response> {
     const input = body.parse(await request.json().catch(() => ({})));
     const job = await findJobInOrganization(input.jobId, recruiter.organizationId);
     if (!job) throw new ApiError(404, "Job not found.");
-    const hash = rubricHash(job);
+    const rubric = await ensureRubric(job, recruiter.id);
+    const hash = rubricHash(job, rubric.version);
 
     const keyed = input.candidates.map((card) => ({ ...card, key: cardKey(card.rawText, card.profileUrl) }));
     const stored = await prisma.cardScore.findMany({
@@ -45,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
     for (const card of keyed) {
       const row = byKey.get(card.key);
       const cachedResult = row?.rubricHash === hash ? (row.result as unknown as CardResult) : null;
-      const sameName = cachedResult ? normalizeName(cachedResult.extracted?.fullName) === normalizeName(scoreCard(job, card.domId, card.rawText).extracted?.fullName) : false;
+      const sameName = cachedResult ? normalizeName(cachedResult.extracted?.fullName) === normalizeName(scoreCard(job, rubric, card.domId, card.rawText).extracted?.fullName) : false;
 
       if (row && cachedResult && sameName) {
         results.push({ ...cachedResult, domId: card.domId, key: card.key, cached: true });
@@ -58,7 +60,7 @@ export async function POST(request: Request): Promise<Response> {
         unscored.push(card.domId);
         continue;
       }
-      const result = scoreCard(job, card.domId, card.rawText);
+      const result = scoreCard(job, rubric, card.domId, card.rawText);
       const data = {
         rubricHash: hash,
         score: result.score,

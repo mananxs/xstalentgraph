@@ -1,4 +1,4 @@
-// The extension's whole backend contract against a running TalentGraph.
+// The extension's whole backend contract against a running XS-Hunt.
 //   TG_URL=http://localhost:3001 TG_EMAIL=you@x.com TG_PASSWORD=... npm run test:backend
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -13,7 +13,7 @@ const santhosh = `Santhosh Kumar\n7y 0m\n₹ 12 Lacs\nHyderabad\nCurrent\nDevOps
 const vibhuti = `Vibhuti Goel\n10y 0m\n₹ 0\nNoida\nCurrent\nTechnical Solution Manager at Coralogix\nKey skills\nObservability | Sales | Presentation`;
 const pooja = `Pooja Jaiswar\n6y 2m\n₹ 18 Lacs\nHyderabad\nCurrent\nConsulting Engineer at Capgemini\nKey skills\nGo | Kubernetes | AWS`;
 
-describe("extension backend inside TalentGraph", { skip }, () => {
+describe("extension backend inside XS-Hunt", { skip }, () => {
   let key = "";
   let jobId = "";
   let cardUrl = "";

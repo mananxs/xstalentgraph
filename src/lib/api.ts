@@ -30,7 +30,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 /** Uploads may wait on AI reading / OCR. */
 const UPLOAD_TIMEOUT_MS = 150_000;
 
-async function request<T>(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
+export async function request<T>(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init;
   const isForm = typeof FormData !== "undefined" && rest.body instanceof FormData;
   let response: Response;
@@ -125,6 +125,9 @@ export interface ShortlistsResponse {
     id: string;
     score: number | null;
     scoredBy: "ai" | "quick" | "xray" | "extension";
+    stage: string;
+    tier: string | null;
+    matchId: string;
     matchedSkills: string[];
     jobId: string;
     jobTitle: string;

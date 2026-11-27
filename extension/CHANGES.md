@@ -1,4 +1,10 @@
-# XS-NaukriAI 1.2: what changed
+# XS-Hunt extension 2.0
+
+Controlled from XS-Hunt: connection + Naukri session detection (heartbeat), filter apply-and-verify, paced pagination capture, independent
+pause/stop, credit-gated profile and CV retrieval, persistent queue/outbox, recovery after restarts. Details: ../docs/XS-HUNT.md.
+
+New files: `src/background/agent.ts`, `src/content/agent-content.ts`, `src/content/cards.ts`, `src/sidepanel/components/AgentStatusCard.tsx`.
+Load `dist/` in Chrome. Tests: `node tests/agent.test.cjs` (fixtures), `npm run test:worker` (real worker vs a running platform).
 
 Load the extension from `dist/` (chrome://extensions -> Developer mode -> Load unpacked). The same files are also copied to the
 project root, so loading the root folder works too. Rebuild with `npm run build`.
@@ -19,15 +25,15 @@ Files: `ScoringToggle.tsx`, `Settings.scoring`.
 ## 3. "Customize scoring for this job" removed
 Panel block, component and the `SAVE_JOB_EDITS` message are gone; scoring uses the server's standard rubric for everyone.
 
-## 4. TalentGraph is now the extension's ONLY backend  (new)
-The extension no longer needs its old web app. Log in with your TalentGraph email + password (panel -> Platform URL = your TalentGraph
-site), or paste a key from TalentGraph Settings. Jobs, rubric, scoring, Analyzed, search sessions, shortlist and CV upload are all served by
-TalentGraph at `/api/extension/*`; everything you save shows up in its Pipeline and Shortlists, and each CV opens inside the platform
+## 4. XS-Hunt is now the extension's ONLY backend  (new)
+The extension no longer needs its old web app. Log in with your XS-Hunt email + password (panel -> Platform URL = your XS-Hunt
+site), or paste a key from XS-Hunt Settings. Jobs, rubric, scoring, Analyzed, search sessions, shortlist and CV upload are all served by
+XS-Hunt at `/api/extension/*`; everything you save shows up in its Pipeline and Shortlists, and each CV opens inside the platform
 (`/candidates/:id`), so nothing links back to a Naukri URL that would 404. Attach CV still runs only when you press it.
 
 ## Tests
 `npm run test:unit`, and with Playwright (`NODE_PATH=$(npm root -g)`): `node tests/scoring.test.cjs`, `content.test.cjs`, `fill.test.cjs`.
-`TG_URL=... TG_EMAIL=... TG_PASSWORD=... npm run test:backend` runs the full contract against a live TalentGraph.
+`TG_URL=... TG_EMAIL=... TG_PASSWORD=... npm run test:backend` runs the full contract against a live XS-Hunt.
 
 ## Not changed / open
 * "Auto fill": the existing fill and auto-sync tests pass and I could not reproduce a fault from the code alone. Tell me what

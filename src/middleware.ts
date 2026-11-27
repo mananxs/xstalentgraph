@@ -18,4 +18,4 @@ export async function middleware(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-export const config = { matcher: ["/pipeline/:path*", "/jobs/:path*", "/shortlists/:path*", "/resume-match/:path*", "/integrations/:path*", "/settings/:path*", "/candidates/:path*", "/talent-pool/:path*"] };
+export const config = { matcher: ["/dashboard/:path*", "/reports/:path*", "/team/:path*", "/pipeline/:path*", "/jobs/:path*", "/shortlists/:path*", "/resume-match/:path*", "/integrations/:path*", "/settings/:path*", "/candidates/:path*", "/talent-pool/:path*"] };

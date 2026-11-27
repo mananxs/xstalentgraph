@@ -4,10 +4,10 @@ import { Network } from "lucide-react";
 export function Logo({ showName = true, alwaysShowName = false }: { showName?: boolean; alwaysShowName?: boolean }) {
   return (
     <span className="flex items-center gap-2">
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-950 text-white">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent text-white">
         <Network className="size-4" aria-hidden="true" />
       </span>
-      {showName && <span className={`${alwaysShowName ? "block" : "hidden md:block"} text-[15px] font-semibold tracking-tight text-zinc-950`}>TalentGraph</span>}
+      {showName && <span className={`${alwaysShowName ? "block" : "hidden md:block"} text-[15px] font-semibold tracking-tight text-zinc-950`}>XS-Hunt</span>}
     </span>
   );
 }

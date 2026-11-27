@@ -5,6 +5,10 @@ import { MAX_UPLOAD_BYTES, fileToText } from "@/server/files/parse";
 import { createLogger } from "@/server/logger";
 import type { RecruiterContext } from "@/server/repositories/recruiterRepository";
 import { sniffResume, type ResumeKind } from "./resumeFile";
+import { parseCtcLpa, parseNotice } from "@/server/extension/cardParse";
+import { ensureRubric, evaluateAndStore, moveStage, resolveCandidate } from "@/server/hunt/store";
+import { storeResumeFile } from "@/server/hunt/resumes";
+import { findJobInOrganization } from "@/server/repositories/jobRepository";
 import { naukriKey, naukriProfileText, type ShortlistPayload } from "./schema";
 
 const log = createLogger("naukri-intake");
@@ -100,72 +104,94 @@ export async function saveNaukriShortlist(params: {
     }
   }
 
-  const resumeFields =
-    fileBuffer && kind
-      ? { resumeData: new Uint8Array(fileBuffer), resumeFileName: fileName, resumeFileType: kind, resumeText, resumeCapturedAt: new Date() }
-      : resumeText
-        ? { resumeText, resumeCapturedAt: new Date() }
-        : {};
-
-  const base = {
-    source: "naukri",
-    login: key,
-    name: candidate.name,
-    avatarUrl: candidate.avatarUrl ?? null,
-    profileUrl: candidate.profileUrl || "https://resdex.naukri.com/",
-    headline: candidate.headline ?? null,
-    bio: candidate.summary ?? null,
-    location: candidate.location ?? null,
-    skills: candidate.skills,
-    experienceYears: candidate.experienceYears ?? null,
-    emails: candidate.emails,
-    phoneNumbers: candidate.phones,
-    phone: candidate.phones[0] ?? null,
-    phoneSource: candidate.phones[0] ? "naukri" : null,
-    ctc: candidate.ctc ?? null,
-    noticePeriod: candidate.noticePeriod ?? null,
-    profileText: naukriProfileText(payload),
-    lastIngestedAt: new Date(),
-  };
-
   const mode = params.mode ?? "card";
-  const before = await prisma.candidate.findUnique({ where: { naukriId: key }, select: { id: true, fullProfile: true } });
-  const keptFullProfile = mode === "card" && before?.fullProfile === true;
-  const select = { id: true, resumeData: true, resumeText: true } as const;
-  const saved = keptFullProfile
-    ? await prisma.candidate.findUniqueOrThrow({ where: { naukriId: key }, select })
-    : await prisma.candidate.upsert({
-        where: { naukriId: key },
-        create: { ...base, naukriId: key, ...resumeFields, fullProfile: mode === "profile" },
-        update: { ...base, ...resumeFields, ...(mode === "profile" ? { fullProfile: true } : {}) },
-        select,
-      });
+  const org = recruiter.organizationId;
+  const company = / at (.+)$/i.exec(candidate.headline ?? "")?.[1] ?? null;
+  const resolved = await resolveCandidate({
+    organizationId: org,
+    source: "naukri",
+    externalId: key,
+    name: candidate.name,
+    emails: candidate.emails,
+    phones: candidate.phones,
+    profileUrl: candidate.profileUrl && !/^https?:\/\/[^/]+\/?$/.test(candidate.profileUrl) ? candidate.profileUrl : null,
+    company,
+    expYears: candidate.experienceYears ?? null,
+    headline: candidate.headline ?? null,
+    data: { ctc: candidate.ctc ?? null, noticePeriod: candidate.noticePeriod ?? null, location: candidate.location ?? null },
+  });
+  const before = await prisma.candidate.findUniqueOrThrow({ where: { id: resolved.candidateId }, select: { id: true, fullProfile: true, primarySource: true, naukriId: true, skills: true, emails: true, phoneNumbers: true, headline: true, location: true, bio: true } });
+  const keptFullProfile = mode === "card" && before.fullProfile === true;
 
+  if (!keptFullProfile) {
+    const own = before.primarySource === "naukri";
+    const union = (a: string[], b: string[]) => [...new Set([...a, ...b])];
+    await prisma.candidate.update({
+      where: { id: before.id },
+      data: {
+        name: own ? candidate.name : undefined,
+        avatarUrl: candidate.avatarUrl ?? undefined,
+        headline: own ? (candidate.headline ?? undefined) : (before.headline ?? candidate.headline ?? undefined),
+        bio: own ? (candidate.summary ?? undefined) : (before.bio ?? candidate.summary ?? undefined),
+        location: own ? (candidate.location ?? undefined) : (before.location ?? candidate.location ?? undefined),
+        skills: own ? candidate.skills : union(before.skills, candidate.skills),
+        experienceYears: candidate.experienceYears ?? undefined,
+        emails: union(before.emails, candidate.emails),
+        phoneNumbers: union(before.phoneNumbers, candidate.phones),
+        phone: candidate.phones[0] ?? undefined,
+        phoneSource: candidate.phones[0] ? "naukri" : undefined,
+        ctc: candidate.ctc ?? undefined,
+        noticePeriod: candidate.noticePeriod ?? undefined,
+        profileText: naukriProfileText(payload),
+        lastIngestedAt: new Date(),
+        naukriId: before.naukriId ?? `${org.slice(0, 8)}:${key}`,
+        ...(mode === "profile" ? { fullProfile: true } : {}),
+        ...(resumeText && !fileBuffer ? { resumeText, resumeCapturedAt: new Date() } : {}),
+      },
+    });
+  }
+  if (fileBuffer && kind) {
+    await storeResumeFile({ organizationId: org, candidateId: before.id, buffer: fileBuffer, fileName: fileName ?? `resume.${kind}`, fileType: kind, text: resumeText, origin: "naukri", actorId: recruiter.id });
+  }
+  const saved = await prisma.candidate.findUniqueOrThrow({ where: { id: before.id }, select: { id: true, resumeData: true, resumeText: true } });
+
+  // The standard 7-dimension evaluation under the job's current rubric (history is kept; overrides and stage are untouched).
+  const jobRow = await findJobInOrganization(job.id, org);
+  let evaluated: { matchId: string } | null = null;
+  if (jobRow) {
+    const rubric = await ensureRubric(jobRow, recruiter.id);
+    const ctcLpa = candidate.ctc ? parseCtcLpa(candidate.ctc) : -1;
+    const notice = candidate.noticePeriod ? parseNotice(`Notice period: ${candidate.noticePeriod}`).days : -1;
+    const row = await prisma.candidate.findUniqueOrThrow({ where: { id: saved.id }, select: { skills: true, resumeText: true } });
+    evaluated = await evaluateAndStore({
+      job: jobRow,
+      rubric,
+      candidateId: saved.id,
+      facts: {
+        name: candidate.name,
+        headline: candidate.headline ?? undefined,
+        skills: candidate.skills.length ? candidate.skills : row.skills,
+        expYears: candidate.experienceYears ?? null,
+        currentCtcLpa: ctcLpa >= 0 ? ctcLpa : null,
+        expectedCtcLpa: null,
+        noticeDays: notice >= 0 ? notice : null,
+        location: candidate.location ?? undefined,
+        text: [candidate.summary, row.resumeText, naukriProfileText(payload)].filter(Boolean).join("\n").slice(0, 20_000),
+      },
+    });
+  }
+
+  // Saving from Naukri = shortlisting. Earlier or rejected stages move to Shortlisted; later stages stay where they are.
   const match = await prisma.matchScore.upsert({
     where: { jobId_candidateId: { jobId: job.id, candidateId: saved.id } },
-    create: {
-      jobId: job.id,
-      candidateId: saved.id,
-      status: "completed",
-      score: Math.round(analysis.score),
-      matchedSkills: analysis.matchedSkills,
-      missingSkills: analysis.missingSkills,
-      model: NAUKRI_EXT_MODEL,
-      note: analysis.reason ?? null,
-      shortlisted: true,
-    },
-    update: {
-      status: "completed",
-      score: Math.round(analysis.score),
-      matchedSkills: analysis.matchedSkills,
-      missingSkills: analysis.missingSkills,
-      model: NAUKRI_EXT_MODEL,
-      note: analysis.reason ?? null,
-      shortlisted: true,
-      error: null,
-    },
-    select: { id: true },
+    create: { jobId: job.id, candidateId: saved.id, status: "completed", score: Math.round(analysis.score), matchedSkills: analysis.matchedSkills, missingSkills: analysis.missingSkills, model: NAUKRI_EXT_MODEL, note: analysis.reason ?? null, shortlisted: true, stage: "shortlisted" },
+    update: { shortlisted: true },
+    select: { id: true, stage: true },
   });
+  if (["new", "sourced", "screening", "rejected"].includes(match.stage)) {
+    await moveStage({ organizationId: org, matchId: match.id, to: "shortlisted", actorId: recruiter.id });
+  }
+  void evaluated;
 
   const stored: IntakeResult["resume"] = saved.resumeData ? "file" : saved.resumeText ? "text" : "none";
   if (stored === "none" && !warning) warning = "No resume reached the platform. Open the profile in Naukri and press Save again once the CV has loaded.";
@@ -176,7 +202,7 @@ export async function saveNaukriShortlist(params: {
     matchId: match.id,
     jobId: job.id,
     jobTitle: job.title,
-    created: !before,
+    created: resolved.created,
     keptFullProfile,
     resume: stored,
     resumeWarning: stored === "file" ? null : warning,

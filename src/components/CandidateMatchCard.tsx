@@ -130,7 +130,7 @@ export function CandidateMatchCard({ match, rank, onToggleShortlist, onRevealCon
           )}
           {scoredBy === "extension" && (
             <span title="Scored in the Naukri extension against this job" className="flex items-center gap-0.5 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
-              <Sparkles className="size-2.5" aria-hidden="true" /> Naukri AI
+              <Sparkles className="size-2.5" aria-hidden="true" /> Rubric score
             </span>
           )}
           {scoredBy === "ai" && (
@@ -202,7 +202,7 @@ export function CandidateMatchCard({ match, rank, onToggleShortlist, onRevealCon
           <Link
             href={`/candidates/${candidate.id}`}
             className={`flex items-center gap-1.5 text-sm hover:underline ${candidate.hasResume ? "text-accent" : "text-zinc-500"}`}
-            title={candidate.hasResume ? "Opens the resume stored in TalentGraph" : "No resume was captured yet. Open to see how to add it."}
+            title={candidate.hasResume ? "Opens the resume stored in XS-Hunt" : "No resume was captured yet. Open to see how to add it."}
           >
             <FileText className="size-3.5" aria-hidden="true" />
             {candidate.hasResume ? "View resume" : "Resume missing"}

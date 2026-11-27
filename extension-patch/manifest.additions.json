@@ -1,6 +1,0 @@
-{
-  "_comment": "Merge into your manifest.json. host_permissions lets the background worker call the platform and lets content scripts download the CV with the Resdex session. Replace the platform host with yours (keep http://localhost/* for development).",
-  "permissions": ["storage"],
-  "host_permissions": ["https://resdex.naukri.com/*", "https://*.naukri.com/*", "http://localhost/*", "https://YOUR-PLATFORM-DOMAIN/*"],
-  "background": { "service_worker": "background.js", "type": "module" }
-}

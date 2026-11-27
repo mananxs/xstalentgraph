@@ -1,5 +1,5 @@
 {
-  "name": "talentgraph",
+  "name": "xs-hunt",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -14,10 +14,11 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "github:smoke": "tsx --env-file=.env scripts/github-smoke.ts",
-    "test": "tsx --test src/server/*/*.test.ts src/server/*/*/*/*.test.ts src/lib/*.test.ts src/components/landing/*.test.ts src/server/*.test.ts src/server/extension/*.test.ts",
+    "test": "tsx --test src/server/*/*.test.ts src/server/*/*/*/*.test.ts src/lib/*.test.ts src/components/landing/*.test.ts src/server/*.test.ts src/server/extension/*.test.ts src/server/hunt/*.test.ts",
     "worker": "tsx --env-file=.env src/worker/index.ts",
     "user:create": "tsx --env-file=.env scripts/create-user.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:hunt": "tsx --test tests/hunt.integration.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -26,6 +27,7 @@
     "@google/genai": "^2.32.0",
     "@prisma/client": "^6.19.3",
     "framer-motion": "^14.9.1",
+    "lenis": "^1.3.29",
     "lucide-react": "^1.68.0",
     "mammoth": "^1.13.0",
     "next": "^15.5.29",

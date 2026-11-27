@@ -5,6 +5,7 @@ import { uuidSchema } from "@/server/api/guards";
 import { prisma } from "@/server/db";
 import { extensionRoute } from "@/server/extension/route";
 import { rubricHash } from "@/server/extension/rubric";
+import { ensureRubric } from "@/server/hunt/store";
 import { findJobInOrganization } from "@/server/repositories/jobRepository";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function GET(request: Request): Promise<Response> {
     const input = query.parse(Object.fromEntries(new URL(request.url).searchParams));
     const job = await findJobInOrganization(input.jobId, recruiter.organizationId);
     if (!job) throw new ApiError(404, "Job not found.");
-    const hash = rubricHash(job);
+    const hash = rubricHash(job, (await ensureRubric(job, recruiter.id)).version);
     const where = { jobId: job.id, recruiterId: recruiter.id, ...(input.searchSessionId ? { sessionIds: { has: input.searchSessionId } } : {}) };
     const [rows, staleCount] = await Promise.all([
       prisma.cardScore.findMany({ where: { ...where, rubricHash: hash, score: { gte: input.minScore } }, orderBy: [{ score: "desc" }, { updatedAt: "desc" }], take: 300 }),

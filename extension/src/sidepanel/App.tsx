@@ -5,6 +5,7 @@ import CandidateDetailTab from "./components/CandidateDetailTab";
 import JobSelector from "./components/JobSelector";
 import AnalyzedTab from "./components/AnalyzedTab";
 import LiveRankingTab from "./components/LiveRankingTab";
+import AgentStatusCard from "./components/AgentStatusCard";
 import ScoringToggle from "./components/ScoringToggle";
 import SearchSyncBar from "./components/SearchSyncBar";
 import { call, useActiveTab, useStorage } from "./lib";
@@ -57,7 +58,7 @@ export default function App() {
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2 font-semibold">
           <span className="grid h-6 w-6 place-items-center rounded-md bg-indigo-600 text-xs text-white">R</span>
-          XS-NaukriAI
+          XS-Hunt
         </div>
         <div className="flex items-center gap-2 text-[11px] text-slate-500">
           <span className="max-w-[160px] truncate" title={config.user ? `${config.user.name ?? ""} <${config.user.email}> · ${config.baseUrl}` : config.baseUrl}>
@@ -73,6 +74,7 @@ export default function App() {
         <p className="rounded-md bg-amber-50 p-2 text-[12px] text-amber-800">Switch to a resdex.naukri.com tab to score candidates.</p>
       )}
 
+      <AgentStatusCard />
       <ScoringToggle tabId={tabId} onResdex={onResdex} />
       <JobSelector activeJob={activeJob} tabId={tabId} onResdex={onResdex} />
       <SearchSyncBar activeJob={activeJob} tabId={tabId} onResdex={onResdex} />

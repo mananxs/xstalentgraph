@@ -1,0 +1,23 @@
+<!doctype html><html><body style="font-family:sans-serif">
+<header><input id="kw" placeholder="Enter keywords like skills, designation" value=""><input id="loc" placeholder="Current location" value="Hyderabad">
+<div class="exp"><span>Experience</span><input aria-label="Min experience (years)" value="5"><input aria-label="Max experience (years)" value="9"></div></header>
+<main id="results"></main>
+<nav class="pagination" id="pager"></nav>
+<script>
+const PEOPLE = [];
+const names = ["Asha Rao","Bala Iyer","Chitra Menon","Dev Patel","Esha Nair","Farhan Ali","Gita Rao","Hari Om","Indu Varma","Jay Shah","Kiran Das","Lata Roy"];
+names.forEach((n,i)=>PEOPLE.push([n,"SRE at Corp"+i,(6+(i%4))]));
+const PER=3; const PAGES=Math.ceil(PEOPLE.length/PER);
+let page = Number(new URLSearchParams(location.search).get("page")||1);
+function render(){
+  const slice=PEOPLE.slice((page-1)*PER,page*PER);
+  document.getElementById('results').innerHTML = slice.map(([n,r,y],i)=>`<div class="card"><h3><a href="/profile/${(page-1)*PER+i}">${n}</a></h3>
+  <p>${r} — ${y} Yrs ${i} Months | ${20+i*5} Lacs | Notice period: ${i?30:15} days</p><p>Current location: Hyderabad / Pune. Preferred: Bengaluru</p>
+  <p>Key skills: Go, Kubernetes, AWS, Terraform, Linux, Prometheus, Docker. Designation: ${r}. B.Tech Computer Science, IIT.</p></div>`).join('');
+  document.getElementById('pager').innerHTML = (page>1?`<a href="#" id="prev">Previous</a>`:'') + Array.from({length:PAGES},(_,k)=>`<a href="#" class="pg ${k+1===page?'active':''}" data-p="${k+1}">${k+1}</a>`).join('') + (page<PAGES?`<a href="#" id="next">Next</a>`:`<span class="disabled">Next</span>`);
+  document.querySelectorAll('.pg').forEach(a=>a.onclick=e=>{e.preventDefault();page=Number(a.dataset.p);history.pushState({},'','?page='+page);render();});
+  const nx=document.getElementById('next'); if(nx) nx.onclick=e=>{e.preventDefault(); setTimeout(()=>{page++;history.pushState({},'','?page='+page);render();}, 250);};
+}
+render();
+window.__setBroken = () => { document.getElementById('next') && (document.getElementById('next').onclick = e=>e.preventDefault()); };
+</script></body></html>

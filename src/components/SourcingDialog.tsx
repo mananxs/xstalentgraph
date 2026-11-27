@@ -288,7 +288,7 @@ export function SourcingDialog({ open, onClose, purpose, jobId, onSearchCurrent,
                       type="checkbox"
                       checked={edit.remoteAllowed}
                       onChange={(event) => setEdit({ ...edit, remoteAllowed: event.target.checked })}
-                      className="size-4 accent-[#1d4ed8]"
+                      className="size-4 accent-[#4f46e5]"
                     />
                     <Wifi className="size-3.5" aria-hidden="true" /> Remote allowed
                   </label>
@@ -454,7 +454,7 @@ export function SourcingDialog({ open, onClose, purpose, jobId, onSearchCurrent,
                 type="checkbox"
                 checked={draft.remoteAllowed}
                 onChange={(event) => setDraft({ ...draft, remoteAllowed: event.target.checked })}
-                className="size-4 accent-[#1d4ed8]"
+                className="size-4 accent-[#4f46e5]"
               />
               Remote allowed
             </label>

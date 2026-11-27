@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export const OPTIONS = (request: Request) => preflight(request);
 
-/** GET /api/ext/ping - lets the extension check the key and show "Connected to TalentGraph". */
+/** GET /api/ext/ping - lets the extension check the key and show "Connected to XS-Hunt". */
 export async function GET(request: Request): Promise<Response> {
   const response = await handleRoute(async () => {
     const recruiter = await requireExtension(request);

@@ -6,6 +6,7 @@ import { extractContacts } from "@/server/extension/contacts";
 import { extensionRoute } from "@/server/extension/route";
 import { MAX_UPLOAD_BYTES, fileToText } from "@/server/files/parse";
 import { sniffResume } from "@/server/naukri/resumeFile";
+import { storeResumeFile } from "@/server/hunt/resumes";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,18 +38,14 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     const phone = found.phones[0] ?? null;
     const email = found.emails[0] ?? null;
     const fileName = file.name.replace(/[^\w.\- ]+/g, "").slice(0, 200) || `resume.${kind}`;
+    const stored = await storeResumeFile({ organizationId: recruiter.organizationId, candidateId: id, buffer, fileName, fileType: kind, text, origin: "naukri", actorId: recruiter.id });
     await prisma.candidate.update({
       where: { id },
       data: {
-        resumeData: new Uint8Array(buffer),
-        resumeFileName: fileName,
-        resumeFileType: kind,
-        resumeText: text ?? candidate.resumeText,
-        resumeCapturedAt: new Date(),
         ...(phone && !candidate.phone ? { phone, phoneSource: "cv", phoneNumbers: [...new Set([...candidate.phoneNumbers, phone])] } : {}),
         ...(email && !candidate.emails.includes(email) ? { emails: [...candidate.emails, email] } : {}),
       },
     });
-    return NextResponse.json({ resume: { fileName }, phone: candidate.phone ?? phone, email: candidate.emails[0] ?? email, phoneFromCv: Boolean(phone && !candidate.phone) });
+    return NextResponse.json({ resume: { fileName, duplicate: stored.duplicate }, phone: candidate.phone ?? phone, email: candidate.emails[0] ?? email, phoneFromCv: Boolean(phone && !candidate.phone) });
   });
 }

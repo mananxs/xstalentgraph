@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "sw
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "TalentGraph: source, rank and shortlist from LinkedIn, Naukri and GitHub",
+  title: "XS-Hunt: source, rank and shortlist from LinkedIn, Naukri and GitHub",
   description: "One workspace that turns a job description into a ranked shortlist across LinkedIn, Naukri, Cutshort and GitHub, with every resume stored in one place.",
 };
 

@@ -1,9 +1,9 @@
-import { Dashboard } from "@/components/Dashboard";
+import { PipelineView } from "@/components/hunt/PipelineView";
 
-type PageProps = { searchParams: Promise<{ job?: string }> };
+type PageProps = { searchParams: Promise<{ job?: string; pending?: string }> };
 
-/** Pipeline: the candidate dashboard for one job. */
+/** The eleven-stage ATS pipeline. (The earlier GitHub/LinkedIn dashboard is still available at /pipeline/classic.) */
 export default async function PipelinePage({ searchParams }: PageProps) {
-  const { job } = await searchParams;
-  return <Dashboard initialJobId={job ?? null} initialTab="sourced" />;
+  const { job, pending } = await searchParams;
+  return <PipelineView initialJobId={job ?? null} pending={pending === "1"} />;
 }

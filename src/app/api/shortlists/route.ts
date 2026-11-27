@@ -1,3 +1,4 @@
+import { SHORTLIST_STAGES } from "@/server/hunt/stages";
 import { scoredByOf } from "@/server/ai/heuristic";
 import { handleRoute, jsonOk } from "@/server/api/http";
 import { requireRecruiter } from "@/server/auth";
@@ -12,13 +13,15 @@ export async function GET(): Promise<Response> {
     const recruiter = await requireRecruiter();
     const [github, resumes] = await Promise.all([
       prisma.matchScore.findMany({
-        where: { shortlisted: true, job: { organizationId: recruiter.organizationId } },
+        where: { stage: { in: [...SHORTLIST_STAGES] }, job: { organizationId: recruiter.organizationId } },
         select: {
           id: true,
           score: true,
           model: true,
           matchedSkills: true,
           note: true,
+          stage: true,
+          tier: true,
           job: { select: { id: true, title: true } },
           candidate: {
             select: {
@@ -51,6 +54,9 @@ export async function GET(): Promise<Response> {
         scoredBy: scoredByOf(row.model),
         matchedSkills: row.matchedSkills,
         note: row.note,
+        stage: row.stage,
+        tier: row.tier,
+        matchId: row.id,
         jobId: row.job.id,
         jobTitle: row.job.title,
         candidateId,

@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "npm run build -- --watch",
-    "build": "vite build && vite build --config vite.content.config.ts",
+    "build": "vite build && vite build --config vite.content.config.ts && vite build --config vite.agent.config.ts",
     "typecheck": "tsc --noEmit",
     "test:unit": "tsx --test tests/unit.test.ts",
-    "test:backend": "tsx --test tests/backend.integration.test.ts"
+    "test:backend": "tsx --test tests/backend.integration.test.ts",
+    "test:worker": "tsx --test tests/agent-worker.integration.test.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

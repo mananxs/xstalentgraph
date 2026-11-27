@@ -1,4 +1,5 @@
 import { ApiError, handleRoute, jsonOk } from "@/server/api/http";
+import { requireWriter } from "@/server/auth";
 import { requireJobAccess, uuidSchema } from "@/server/api/guards";
 import { getEnv } from "@/server/env";
 import { extractIndianMobile } from "@/server/sourcing/phone";
@@ -16,6 +17,7 @@ type RouteContext = { params: Promise<{ id: string; matchId: string }> };
  */
 export async function POST(_request: Request, context: RouteContext): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     const { id, matchId } = await context.params;
     const { job } = await requireJobAccess(id);
     const env = getEnv();

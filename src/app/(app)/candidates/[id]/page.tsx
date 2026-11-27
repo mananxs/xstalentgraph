@@ -153,7 +153,7 @@ export default async function CandidatePage({ params, searchParams }: PageProps)
               <h3 className="text-base font-medium text-zinc-950">No resume stored for {displayName} yet</h3>
               <p className="max-w-md text-sm text-zinc-600">
                 {source === "naukri"
-                  ? "Naukri CV links only open inside your logged-in Resdex session, so TalentGraph keeps its own copy. Open this profile on Resdex and press Save Card to Shortlist in the extension: it downloads the CV and uploads it here."
+                  ? "Naukri CV links only open inside your logged-in Resdex session, so XS-Hunt keeps its own copy. Open this profile on Resdex and press Save Card to Shortlist in the extension: it downloads the CV and uploads it here."
                   : "This source does not provide a resume file. Upload one from the Resume Match module."}
               </p>
               {source === "naukri" && (

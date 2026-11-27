@@ -42,6 +42,15 @@ model Organization {
   recruiters       Recruiter[]
   jobs             JobDescription[]
   resumeCandidates ResumeCandidate[]
+  candidates       Candidate[]
+  candidateSources CandidateSource[]
+  candidateResumes CandidateResume[]
+  evaluations      CandidateEvaluation[]
+  pipelineEvents   PipelineEvent[]
+  extensionConns   ExtensionConnection[]
+  sourcingTasks    SourcingTask[]
+  capturedCards    CapturedCandidate[]
+  retrievals       RetrievalRequest[]
 
   @@index([createdAt])
   @@index([updatedAt])
@@ -55,10 +64,12 @@ model Recruiter {
   name           String
   /// scrypt hash ("scrypt$<salt hex>$<hash hex>") used by the email + password login. null = cannot sign in.
   passwordHash   String?
+  /// admin | recruiter | viewer. Admins manage the team; viewers cannot change data.
+  role           String   @default("recruiter")
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
 
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   oauthTokens      OAuthToken[]
   jobs             JobDescription[]
   ingestionBatches IngestionBatch[]
@@ -66,6 +77,7 @@ model Recruiter {
   apiKeys          ApiKey[]
   searchSessions   SearchSession[]
   cardScores       CardScore[]
+  extensionConns   ExtensionConnection[]
 
   @@index([organizationId])
   @@index([createdAt])
@@ -122,13 +134,16 @@ model JobDescription {
   createdAt       DateTime                     @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime                     @default(now()) @updatedAt @db.Timestamptz(3)
 
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy        Recruiter         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy        Recruiter             @relation(fields: [createdById], references: [id], onDelete: Restrict)
   batches          IngestionBatch[]
   matchScores      MatchScore[]
   resumeCandidates ResumeCandidate[]
   searchSessions   SearchSession[]
   cardScores       CardScore[]
+  rubrics          EvaluationRubric[]
+  evaluations      CandidateEvaluation[]
+  sourcingTasks    SourcingTask[]
 
   @@index([organizationId, createdAt])
   @@index([createdById])
@@ -137,64 +152,77 @@ model JobDescription {
 }
 
 model Candidate {
-  id              String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id               String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// null for candidates sourced from LinkedIn.
-  githubId        BigInt?                      @unique
+  githubId         BigInt?                      @unique
   /// "github" | "linkedin" | "cutshort"
-  source          String                       @default("github")
+  source           String                       @default("github")
   /// LinkedIn public identifier (/in/<id>), lower case. null for GitHub candidates.
-  linkedinId      String?                      @unique
+  linkedinId       String?                      @unique
   /// Cutshort talentCardId for candidates sourced from Cutshort. null otherwise.
-  cutshortId      String?                      @unique
+  cutshortId       String?                      @unique
   /// Stable Naukri/Resdex candidate key sent by the browser extension. null otherwise.
-  naukriId        String?                      @unique
+  naukriId         String?                      @unique
   /// Naukri extras shown on the card (free text exactly as Resdex shows it, e.g. "12 Lacs", "30 days").
-  ctc             String?
-  noticePeriod    String?
+  ctc              String?
+  noticePeriod     String?
   /// The resume is stored INSIDE the platform. Naukri CV links need a live Resdex session and 404 outside it,
   /// so the extension uploads the bytes (resumeData) or, failing that, the CV text (resumeText).
-  resumeFileName  String?
-  resumeFileType  String?
-  resumeData      Bytes?
-  resumeText      String?                      @db.Text
-  resumeCapturedAt DateTime?                   @db.Timestamptz(3)
+  resumeFileName   String?
+  resumeFileType   String?
+  resumeData       Bytes?
+  resumeText       String?                      @db.Text
+  resumeCapturedAt DateTime?                    @db.Timestamptz(3)
   /// true once the full Resdex profile was saved (the list-card save must not overwrite it).
-  fullProfile     Boolean                      @default(false)
+  fullProfile      Boolean                      @default(false)
+  /// Owning organization for privately captured candidates (Naukri / LinkedIn / Direct). null = public GitHub data not yet claimed.
+  organizationId   String?                      @db.Uuid
+  /// Where the candidate was FIRST found, and every source that has a record of them. `source` (legacy) always equals primarySource.
+  primarySource    String                       @default("github")
+  sources          String[]                     @default([])
   /// GitHub login, or the LinkedIn public identifier for LinkedIn candidates.
-  login           String
-  headline        String?
-  skills          String[]                     @default([])
-  experienceYears Float?
+  login            String
+  headline         String?
+  skills           String[]                     @default([])
+  experienceYears  Float?
   // ---- contact data for recruiter outreach. Never sent to the AI. ----
-  emails          String[]                     @default([])
-  phoneNumbers    String[]                     @default([])
+  emails           String[]                     @default([])
+  phoneNumbers     String[]                     @default([])
   /// Primary Indian mobile number for outreach, E.164 ("+919876543210"). null when none was found.
   /// Read free from Google snippets by regex; only Tier 1 candidates ever get a paid enrichment lookup.
-  phone           String?
+  phone            String?
   /// Where `phone` came from: "serp_regex" | "enrichment:<provider>". null when there is no phone.
-  phoneSource     String?
-  personalWebsite String?
-  otherLinks      String[]                     @default([])
-  name            String?
-  avatarUrl       String?
-  profileUrl      String
-  bio             String?                      @db.Text
-  location        String?
-  githubCreatedAt DateTime?                    @db.Timestamptz(3)
-  yearsActive     Float?
+  phoneSource      String?
+  personalWebsite  String?
+  otherLinks       String[]                     @default([])
+  name             String?
+  avatarUrl        String?
+  profileUrl       String
+  bio              String?                      @db.Text
+  location         String?
+  githubCreatedAt  DateTime?                    @db.Timestamptz(3)
+  yearsActive      Float?
   /// Shares by bytes, e.g. { "Python": 0.62, "TypeScript": 0.21 }
-  topLanguages    Json                         @default("{}")
-  topics          String[]                     @default([])
+  topLanguages     Json                         @default("{}")
+  topics           String[]                     @default([])
   /// Stays null until enrichment (Phase 6). We never request the GitHub `email` field.
-  publicEmail     String?
-  profileText     String?                      @db.Text
-  embedding       Unsupported("vector(1536)")?
-  lastIngestedAt  DateTime?                    @db.Timestamptz(3)
-  createdAt       DateTime                     @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime                     @default(now()) @updatedAt @db.Timestamptz(3)
+  publicEmail      String?
+  profileText      String?                      @db.Text
+  embedding        Unsupported("vector(1536)")?
+  lastIngestedAt   DateTime?                    @db.Timestamptz(3)
+  createdAt        DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                     @default(now()) @updatedAt @db.Timestamptz(3)
 
-  matchScores MatchScore[]
+  matchScores    MatchScore[]
+  organization   Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  sourceRecords  CandidateSource[]
+  resumes        CandidateResume[]
+  evaluations    CandidateEvaluation[]
+  pipelineEvents PipelineEvent[]
+  capturedCards  CapturedCandidate[]
+  retrievals     RetrievalRequest[]
 
+  @@index([organizationId, primarySource])
   @@index([login])
   @@index([createdAt])
   @@index([updatedAt])
@@ -236,31 +264,49 @@ model IngestionBatch {
 }
 
 model MatchScore {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  jobId         String      @db.Uuid
-  candidateId   String      @db.Uuid
-  batchId       String?     @db.Uuid
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId              String      @db.Uuid
+  candidateId        String      @db.Uuid
+  batchId            String?     @db.Uuid
   /// 0-100. Null while pending/failed. Range enforced by a CHECK constraint (see migration).
-  score         Int?
-  matchedSkills String[]    @default([])
-  missingSkills String[]    @default([])
-  status        MatchStatus @default(pending)
-  model         String?
-  error         String?     @db.Text
+  score              Int?
+  matchedSkills      String[]    @default([])
+  missingSkills      String[]    @default([])
+  status             MatchStatus @default(pending)
+  model              String?
+  error              String?     @db.Text
   /// Recruiter's shortlist flag (kept when a candidate is re-scored).
-  shortlisted   Boolean     @default(false)
+  shortlisted        Boolean     @default(false)
   /// One-line fit reasoning (Naukri extension: the analysis headline shown on the card).
-  note          String?     @db.Text
-  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime    @default(now()) @updatedAt @db.Timestamptz(3)
+  note               String?     @db.Text
+  /// ATS pipeline stage: new, sourced, screening, shortlisted, contacted, interview_scheduled, interviewed, assessment, offer, hired, rejected.
+  stage              String      @default("new")
+  stageChangedAt     DateTime    @default(now()) @db.Timestamptz(3)
+  rejectionReason    String?     @db.Text
+  /// strong | potential | weak | provisional | needs_info (from the latest evaluation). null = not evaluated.
+  tier               String?
+  rubricVersion      Int?
+  latestEvaluationId String?     @db.Uuid
+  /// Recruiter override of the AI result. The AI evaluation is never overwritten; both are kept.
+  overrideScore      Int?
+  overrideTier       String?
+  overrideReason     String?     @db.Text
+  overrideById       String?     @db.Uuid
+  overrideAt         DateTime?   @db.Timestamptz(3)
+  createdAt          DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime    @default(now()) @updatedAt @db.Timestamptz(3)
 
-  job       JobDescription  @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  candidate Candidate       @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  batch     IngestionBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  job        JobDescription  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate  Candidate       @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  batch      IngestionBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  notes      CandidateNote[]
+  interviews Interview[]
+  reminders  Reminder[]
 
   @@unique([jobId, candidateId])
   @@index([jobId, score(sort: Desc)])
   @@index([jobId, shortlisted])
+  @@index([jobId, stage])
   @@index([candidateId])
   @@index([batchId])
   @@index([createdAt])
@@ -364,4 +410,324 @@ model CardScore {
   @@unique([jobId, recruiterId, cardKey, kind])
   @@index([jobId, recruiterId, rubricHash])
   @@map("card_scores")
+}
+
+// ============================================================================================================
+// XS-Hunt: unified candidate identity, 7-dimension evaluation, ATS pipeline, and the browser-extension agent.
+// ============================================================================================================
+
+/// One record per (organization, source, external id) of a person. Many source records can belong to ONE Candidate.
+model CandidateSource {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  candidateId    String   @db.Uuid
+  /// naukri | linkedin | github | cutshort | direct
+  source         String
+  externalId     String
+  profileUrl     String?
+  /// Source-specific details (headline, CTC, notice, skills ...) exactly as captured. Never contains cookies or secrets.
+  data           Json     @default("{}")
+  firstSeenAt    DateTime @default(now()) @db.Timestamptz(3)
+  lastSeenAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate    Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, source, externalId])
+  @@index([candidateId])
+  @@map("candidate_sources")
+}
+
+/// Original resume files (and extracted text). Duplicate files for one candidate are rejected by sha256.
+model CandidateResume {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  candidateId    String   @db.Uuid
+  fileName       String
+  fileType       String
+  sizeBytes      Int
+  sha256         String
+  data           Bytes
+  text           String?  @db.Text
+  /// naukri | linkedin | upload ...
+  origin         String   @default("naukri")
+  capturedById   String?  @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate    Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, sha256])
+  @@index([organizationId, candidateId])
+  @@map("candidate_resumes")
+}
+
+/// Versioned evaluation criteria of a job: the seven standard dimensions plus optional custom criteria.
+model EvaluationRubric {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId       String   @db.Uuid
+  version     Int
+  /// [{ key, label, weight, enabled, config }] for skills, experience, compensation, availability, location, education, career.
+  dimensions  Json
+  /// [{ name, weight, description, keywords[] }]
+  custom      Json     @default("[]")
+  notes       String?  @db.Text
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  job         JobDescription        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  evaluations CandidateEvaluation[]
+
+  @@unique([jobId, version])
+  @@map("evaluation_rubrics")
+}
+
+/// History of AI/standard evaluations. Every row names the job and the rubric version it was made under.
+model CandidateEvaluation {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @db.Uuid
+  jobId            String   @db.Uuid
+  candidateId      String   @db.Uuid
+  rubricId         String   @db.Uuid
+  rubricVersion    Int
+  total            Int
+  tier             String
+  /// 0-1: share of the rubric weight that had real data (the rest was missing, not failed).
+  evidenceCoverage Float
+  /// { skills: { score|null, weight, status: confirmed|missing|mismatch, evidence[], note }, ... }
+  dimensions       Json
+  strengths        String[] @default([])
+  concerns         String[] @default([])
+  missingInfo      String[] @default([])
+  engine           String   @default("xs-hunt-standard")
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job          JobDescription   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate    Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  rubric       EvaluationRubric @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, candidateId, createdAt(sort: Desc)])
+  @@index([organizationId, jobId, tier])
+  @@map("candidate_evaluations")
+}
+
+/// Activity history + audit log: stage moves, notes, overrides, captures, resume views.
+model PipelineEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  jobId          String?  @db.Uuid
+  candidateId    String?  @db.Uuid
+  matchId        String?  @db.Uuid
+  kind           String
+  fromStage      String?
+  toStage        String?
+  actorId        String?  @db.Uuid
+  data           Json     @default("{}")
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate    Candidate?   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([matchId, createdAt(sort: Desc)])
+  @@index([jobId, kind])
+  @@map("pipeline_events")
+}
+
+model CandidateNote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId   String   @db.Uuid
+  authorId  String?  @db.Uuid
+  body      String   @db.Text
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  match MatchScore @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt(sort: Desc)])
+  @@map("candidate_notes")
+}
+
+model Interview {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId      String   @db.Uuid
+  scheduledAt  DateTime @db.Timestamptz(3)
+  mode         String   @default("video")
+  interviewers String?
+  outcome      String?
+  notes        String?  @db.Text
+  createdById  String?  @db.Uuid
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  match MatchScore @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, scheduledAt])
+  @@map("interviews")
+}
+
+model Reminder {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId     String    @db.Uuid
+  dueAt       DateTime  @db.Timestamptz(3)
+  text        String
+  doneAt      DateTime? @db.Timestamptz(3)
+  createdById String?   @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  match MatchScore @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, dueAt])
+  @@map("reminders")
+}
+
+/// One browser running the extension, signed in as one recruiter. Heartbeats keep lastSeenAt fresh.
+model ExtensionConnection {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String    @db.Uuid
+  recruiterId     String    @db.Uuid
+  deviceId        String
+  version         String?
+  /// unknown | signed_in | signed_out | captcha | expired | no_tab  (what the extension saw in the Resdex tab, never a cookie)
+  naukriState     String    @default("unknown")
+  naukriCheckedAt DateTime? @db.Timestamptz(3)
+  lastSeenAt      DateTime  @default(now()) @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recruiter    Recruiter    @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([recruiterId, deviceId])
+  @@index([organizationId, lastSeenAt(sort: Desc)])
+  @@map("extension_connections")
+}
+
+/// A Naukri sourcing run for one job. Sourcing and AI analysis have INDEPENDENT states.
+model SourcingTask {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @db.Uuid
+  jobId            String    @db.Uuid
+  createdById      String    @db.Uuid
+  /// draft | active | completed | cancelled
+  status           String    @default("draft")
+  /// idle | running | paused | stopped | completed  (what the recruiter asked for; the extension reports what it did)
+  sourcingState    String    @default("idle")
+  aiState          String    @default("idle")
+  filters          Json      @default("{}")
+  /// { field: { status: applied|unsupported|failed|attention, detail } } as reported by the extension after READING the form back.
+  filterReport     Json      @default("{}")
+  filtersAppliedAt DateTime? @db.Timestamptz(3)
+  rubricVersion    Int?
+  /// { maxPages, maxCandidates, delaySeconds }
+  limits           Json      @default("{}")
+  pagesDone        Int       @default(0)
+  capturedCount    Int       @default(0)
+  duplicateCount   Int       @default(0)
+  analyzedCount    Int       @default(0)
+  failedCount      Int       @default(0)
+  lastError        String?   @db.Text
+  connectionId     String?   @db.Uuid
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+  completedAt      DateTime? @db.Timestamptz(3)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job          JobDescription      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  commands     SourcingCommand[]
+  events       TaskEvent[]
+  captured     CapturedCandidate[]
+
+  @@index([organizationId, jobId, createdAt(sort: Desc)])
+  @@map("sourcing_tasks")
+}
+
+/// Message from the platform to the extension. `messageId` makes delivery idempotent.
+model SourcingCommand {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId    String    @db.Uuid
+  messageId String    @unique
+  /// check_session | apply_filters | start_sourcing | pause_sourcing | resume_sourcing | stop_sourcing | retrieve_profiles
+  type      String
+  payload   Json      @default("{}")
+  /// pending | acked | done | failed | expired
+  status    String    @default("pending")
+  result    Json?
+  ackedAt   DateTime? @db.Timestamptz(3)
+  doneAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  task SourcingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, status, createdAt])
+  @@map("sourcing_commands")
+}
+
+model TaskEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId    String   @db.Uuid
+  kind      String
+  message   String
+  data      Json     @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  task SourcingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt(sort: Desc)])
+  @@map("task_events")
+}
+
+/// Durable capture queue: one row per Resdex card seen by a task. (taskId, cardKey) makes re-delivery harmless.
+model CapturedCandidate {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  taskId         String    @db.Uuid
+  jobId          String    @db.Uuid
+  cardKey        String
+  page           Int       @default(1)
+  position       Int       @default(0)
+  rawText        String    @db.Text
+  parsed         Json      @default("{}")
+  profileUrl     String?
+  candidateId    String?   @db.Uuid
+  /// pending | done | failed | skipped
+  aiStatus       String    @default("pending")
+  aiError        String?   @db.Text
+  attempts       Int       @default(0)
+  capturedAt     DateTime  @default(now()) @db.Timestamptz(3)
+  analyzedAt     DateTime? @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task         SourcingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  candidate    Candidate?   @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, cardKey])
+  @@index([taskId, aiStatus])
+  @@index([jobId, aiStatus])
+  @@map("captured_candidates")
+}
+
+/// A recruiter-approved request to open a profile / download a CV (may spend Naukri credits). Nothing runs without approval.
+model RetrievalRequest {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  jobId          String   @db.Uuid
+  candidateId    String   @db.Uuid
+  taskId         String?  @db.Uuid
+  approvedById   String   @db.Uuid
+  approvedAt     DateTime @default(now()) @db.Timestamptz(3)
+  /// The recruiter confirmed the credit warning for this request.
+  creditAck      Boolean  @default(false)
+  /// pending | running | done | partial | failed | unavailable
+  status         String   @default("pending")
+  reason         String?  @db.Text
+  result         Json?
+  attempts       Int      @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  candidate    Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([candidateId])
+  @@map("retrieval_requests")
 }

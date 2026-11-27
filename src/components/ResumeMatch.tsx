@@ -157,7 +157,7 @@ export function ResumeMatch({ initialJobId }: { initialJobId: string | null }) {
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm text-zinc-600">
             <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-[11px] font-medium text-accent">Module</span>
-            Resume Match · part of TalentGraph
+            Resume Match · part of XS-Hunt
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {jobsState.jobs.length > 0 ? (
@@ -291,7 +291,7 @@ export function ResumeMatch({ initialJobId }: { initialJobId: string | null }) {
           />
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-zinc-700">
-              <input type="checkbox" checked={onlyShortlisted} onChange={(event) => setOnlyShortlisted(event.target.checked)} className="size-4 accent-[#1d4ed8]" />
+              <input type="checkbox" checked={onlyShortlisted} onChange={(event) => setOnlyShortlisted(event.target.checked)} className="size-4 accent-[#4f46e5]" />
               Shortlisted only
             </label>
             <ScoreFilter value={minScore} onChange={setMinScore} />

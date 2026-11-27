@@ -1,10 +1,8 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { TalentPoolView } from "@/components/hunt/TalentPoolView";
 
-export default function TalentPoolPage() {
-  return (
-    <ComingSoon
-      title="Talent pool"
-      description="One searchable list of every developer you have sourced, across all jobs, is planned for a later version."
-    />
-  );
+type PageProps = { searchParams: Promise<{ tier?: string }> };
+
+export default async function TalentPoolPage({ searchParams }: PageProps) {
+  const { tier } = await searchParams;
+  return <TalentPoolView initialTier={tier ?? null} />;
 }

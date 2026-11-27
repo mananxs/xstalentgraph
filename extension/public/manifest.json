@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "XS-NaukriAI",
-  "version": "1.1.0",
-  "description": "Passive AI match scoring for Naukri Resdex candidates, per-HR login, Naukri search sync and an Analyzed-only view \u2014 powered by your XS-NaukriAI workspace.",
+  "name": "XS-Hunt",
+  "version": "2.0.0",
+  "description": "XS-Hunt for Naukri Resdex: your XS-Hunt workspace drives sourcing in your own signed-in Resdex session, scores candidates with your job rubric, and stores approved profiles and resumes.",
   "minimum_chrome_version": "116",
   "action": {
-    "default_title": "Open XS-NaukriAI"
+    "default_title": "Open XS-Hunt"
   },
   "side_panel": {
     "default_path": "sidepanel.html"
@@ -15,10 +15,12 @@
     "type": "module"
   },
   "permissions": [
+    "activeTab",
+    "alarms",
+    "scripting",
     "sidePanel",
     "storage",
-    "activeTab",
-    "scripting",
+    "tabs",
     "webNavigation"
   ],
   "host_permissions": [
@@ -35,7 +37,8 @@
         "https://resdex.naukri.com/*"
       ],
       "js": [
-        "content.js"
+        "content.js",
+        "agent.js"
       ],
       "run_at": "document_idle"
     }

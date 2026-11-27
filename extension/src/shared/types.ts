@@ -342,6 +342,29 @@ export interface DetailState {
   };
 }
 
+/* ─── XS-Hunt agent (platform-driven sourcing) ─── */
+
+/** The sourcing run this browser is executing for a platform task. Persisted so it survives page reloads and worker restarts. */
+export interface AgentRun {
+  taskId: string;
+  jobId?: string;
+  state: AgentRunState;
+  limits: { maxPages: number; maxCandidates: number; delaySeconds: number };
+  /** Page the pager is on (1-based). */
+  page: number;
+  pagesDone: number;
+  captured: number;
+  /** Signature of the last page captured, so a reload mid-run never captures the same page twice as a "new" page. */
+  lastSig?: string;
+}
+
+export type AgentRunState = "idle" | "running" | "paused" | "stopped" | "completed";
+export type FieldStatus = "applied" | "unsupported" | "failed" | "attention";
+export interface FieldVerdict {
+  status: FieldStatus;
+  detail?: string;
+}
+
 /* ─── Message protocol ─── */
 
 export type ContentToBg =
@@ -349,7 +372,11 @@ export type ContentToBg =
   | { type: "SEARCH_STATE"; snapshot: SearchSnapshot }
   | { type: "PUBLISH_RANKING"; entries: RankEntry[] }
   | { type: "PROFILE_DETECTED"; url: string; rawText: string; label: string }
-  | { type: "CARD_CLICKED"; domId: string };
+  | { type: "CARD_CLICKED"; domId: string }
+  | { type: "AGENT_TICK" }
+  | { type: "AGENT_CAPTURE"; taskId: string; page: number; cards: unknown[] }
+  | { type: "AGENT_EVENT"; taskId: string; kind: string; message: string; data?: Record<string, unknown> }
+  | { type: "AGENT_RUN_STATE"; taskId: string; state: AgentRunState; reason?: string };
 
 export type PanelToBg =
   | { type: "CONNECT"; config: Config }
@@ -368,6 +395,7 @@ export type PanelToBg =
   | { type: "FILL_SEARCH"; tabId: number; fields: SearchFill }
   | { type: "SAVE_CARDS"; tabId: number; cards: CardSavePayload[] }
   | { type: "FOCUS_CARD"; tabId: number; domId: string }
+  | { type: "AGENT_TICK" }
   | { type: "ENSURE_CONTENT"; tabId: number };
 
 export type BgToContent =

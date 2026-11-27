@@ -18,7 +18,7 @@ export default function LoginPage() {
       const body = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Could not sign in.");
       const next = new URLSearchParams(window.location.search).get("next");
-      window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/pipeline");
+      window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not sign in.");
       setBusy(false);

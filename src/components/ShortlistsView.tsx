@@ -43,7 +43,7 @@ export function ShortlistsView() {
         <EmptyState
           icon={<Bookmark className="size-8" aria-hidden="true" />}
           title="Nobody shortlisted yet"
-          description="Press Shortlist on a GitHub candidate in the Pipeline, or on a resume in Resume Match."
+          description="Press Shortlist on a candidate in a job, or move them to Shortlisted in the Pipeline."
         />
       )}
 
@@ -68,8 +68,8 @@ export function ShortlistsView() {
                     <span className="truncate">{row.name ?? row.login}</span>
                   </p>
                   {row.headline && <p className="truncate text-xs text-zinc-600">{row.headline}</p>}
-                  <Link href={`/pipeline?job=${row.jobId}`} className="block truncate text-xs text-accent hover:underline">
-                    {row.jobTitle}
+                  <Link href={`/jobs/${row.jobId}`} className="block truncate text-xs text-accent hover:underline">
+                    {row.jobTitle} · {row.stage.replace(/_/g, " ")}
                   </Link>
                   {row.location && (
                     <p className="flex items-center gap-1 truncate text-xs text-zinc-500">

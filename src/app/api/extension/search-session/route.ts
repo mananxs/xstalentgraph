@@ -5,6 +5,7 @@ import { uuidSchema } from "@/server/api/guards";
 import { prisma } from "@/server/db";
 import { extensionRoute } from "@/server/extension/route";
 import { rubricHash } from "@/server/extension/rubric";
+import { ensureRubric } from "@/server/hunt/store";
 import { findJobInOrganization } from "@/server/repositories/jobRepository";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
       create: { jobId: job.id, recruiterId: recruiter.id, signature: input.signature, label: labelOf(input.state), state: JSON.parse(JSON.stringify(input.state)) },
       update: {},
     });
-    const analyzedCount = await prisma.cardScore.count({ where: { jobId: job.id, recruiterId: recruiter.id, rubricHash: rubricHash(job), sessionIds: { has: session.id } } });
+    const analyzedCount = await prisma.cardScore.count({ where: { jobId: job.id, recruiterId: recruiter.id, rubricHash: rubricHash(job, (await ensureRubric(job, recruiter.id)).version), sessionIds: { has: session.id } } });
     return NextResponse.json({ session: { id: session.id, label: session.label, analyzedCount } });
   });
 }

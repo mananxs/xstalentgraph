@@ -1,4 +1,5 @@
 import { ApiError, handleRoute, jsonOk } from "@/server/api/http";
+import { requireWriter } from "@/server/auth";
 import { toJobDetailDto } from "@/server/api/dto";
 import { requireJobAccess } from "@/server/api/guards";
 import { jobDraftSchema } from "@/server/api/jobInput";
@@ -20,6 +21,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
 /** PATCH /api/jobs/:id - edit the job after it was created (title, description, skills, locations, ...). The next run uses the new values. */
 export async function PATCH(request: Request, context: RouteContext): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     const { id } = await context.params;
     const { recruiter, job } = await requireJobAccess(id);
     const body = jobDraftSchema.partial().parse(await request.json().catch(() => ({})));
@@ -35,6 +37,7 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
 /** DELETE /api/jobs/:id - removes the job with its matches and resumes. */
 export async function DELETE(_request: Request, context: RouteContext): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     const { id } = await context.params;
     const { recruiter, job } = await requireJobAccess(id);
     await deleteJob(job.id, recruiter.organizationId);

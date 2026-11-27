@@ -29,7 +29,7 @@ export async function requireExtensionUser(request: Request): Promise<RecruiterC
   if (!token) throw new ApiError(401, "Not signed in to the extension.");
   const env = getEnv();
 
-  const row = await prisma.apiKey.findUnique({ where: { keyHash: sha256(token) }, select: { id: true, recruiter: { select: { id: true, email: true, name: true, organizationId: true } } } });
+  const row = await prisma.apiKey.findUnique({ where: { keyHash: sha256(token) }, select: { id: true, recruiter: { select: { id: true, email: true, name: true, organizationId: true, role: true } } } });
   if (row) {
     void prisma.apiKey.update({ where: { id: row.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
     return row.recruiter;

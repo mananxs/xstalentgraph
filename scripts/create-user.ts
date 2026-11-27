@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/server/password";
 
 const [email, name, password] = process.argv.slice(2);
+const orgName = process.env.ORG_NAME;
 if (!email || !name || !password || password.length < 8) {
   console.error('Usage: npm run user:create -- <email> "<name>" "<password, 8+ characters>"');
   process.exit(1);
@@ -21,8 +22,9 @@ async function main() {
       await prisma.recruiter.update({ where: { id: existing.id }, data: { passwordHash, name } });
       console.log(`Updated password for ${email}`);
     } else {
-      const organization = (await prisma.organization.findFirst({ orderBy: { createdAt: "asc" } })) ?? (await prisma.organization.create({ data: { name: "My organization" } }));
-      await prisma.recruiter.create({ data: { email: email!.toLowerCase(), name: name!, passwordHash, organizationId: organization.id } });
+      const organization = orgName ? ((await prisma.organization.findFirst({ where: { name: orgName } })) ?? (await prisma.organization.create({ data: { name: orgName } }))) : ((await prisma.organization.findFirst({ orderBy: { createdAt: "asc" } })) ?? (await prisma.organization.create({ data: { name: "My organization" } })));
+      const first = (await prisma.recruiter.count({ where: { organizationId: organization.id } })) === 0;
+      await prisma.recruiter.create({ data: { email: email!.toLowerCase(), name: name!, passwordHash, organizationId: organization.id, role: first ? "admin" : "recruiter" } });
       console.log(`Created ${email} in "${organization.name}"`);
     }
   } finally {

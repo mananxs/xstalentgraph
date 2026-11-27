@@ -1,28 +1,32 @@
-import { Closing } from "@/components/landing/Closing";
-import { Enterprise } from "@/components/landing/Enterprise";
-import { Faq } from "@/components/landing/Faq";
-import { Features } from "@/components/landing/Features";
+import { Describe } from "@/components/landing/Describe";
+import { Faq, Footer, Humans, RolesMarquee, Stats } from "@/components/landing/Closing";
 import { Hero } from "@/components/landing/Hero";
-import { Integrations } from "@/components/landing/Integrations";
-import { Navbar } from "@/components/landing/Navbar";
-import { Stories } from "@/components/landing/Stories";
+import { HireBox } from "@/components/landing/HireBox";
+import { Journey } from "@/components/landing/Journey";
+import { SmoothScroll } from "@/components/landing/kinetic";
+import { Nav } from "@/components/landing/Nav";
+import { Stack } from "@/components/landing/Stack";
 import { Workflow } from "@/components/landing/Workflow";
 
-/** Public landing page: product-led hero with a live sandbox, then sections [01] to [06]. */
+/** Public landing page. Only features that exist are shown as live; anything planned is labelled "Coming soon". */
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-white">
-      <Navbar />
+      <SmoothScroll />
+      <Nav />
       <main>
         <Hero />
-        <Features />
+        <RolesMarquee />
+        <Describe />
+        <Stack />
         <Workflow />
-        <Integrations />
-        <Stories />
-        <Enterprise />
+        <Journey />
+        <HireBox />
+        <Humans />
+        <Stats />
         <Faq />
       </main>
-      <Closing />
+      <Footer />
     </div>
   );
 }

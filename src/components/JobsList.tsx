@@ -82,7 +82,7 @@ export function JobsList() {
                 {job.matchCount} scored {job.matchCount === 1 ? "candidate" : "candidates"} · created {new Date(job.createdAt).toLocaleDateString()}
               </span>
               <div className="mt-auto flex flex-wrap gap-2 pt-3">
-                <Link href={`/pipeline?job=${job.id}`} className="flex items-center gap-1.5 rounded-lg bg-accent/10 px-3 py-1.5 text-sm text-accent hover:bg-accent/15">
+                <Link href={`/jobs/${job.id}`} className="flex items-center gap-1.5 rounded-lg bg-accent/10 px-3 py-1.5 text-sm text-accent hover:bg-accent/15">
                   <LayoutDashboard className="size-4" aria-hidden="true" /> Pipeline
                 </Link>
                 <Link
@@ -103,7 +103,7 @@ export function JobsList() {
         purpose="create"
         onJobCreated={async (job) => {
           await reload();
-          router.push(`/pipeline?job=${job.id}`);
+          router.push(`/jobs/${job.id}`);
         }}
       />
     </div>

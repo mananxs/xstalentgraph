@@ -50,7 +50,7 @@ export function SettingsView() {
           <Card icon={<Cpu className="size-5" aria-hidden="true" />} title="Background worker">
             <Row label="Embedded in the web server" value={status.worker.embedded ? "Yes" : "No (run npm run worker)"} />
           </Card>
-          <Card icon={<Puzzle className="size-5" aria-hidden="true" />} title="Naukri extension (XS-NaukriAI)">
+          <Card icon={<Puzzle className="size-5" aria-hidden="true" />} title="Naukri extension (XS-Hunt)">
             <ExtensionKey />
           </Card>
           <Card icon={<PauseCircle className="size-5" aria-hidden="true" />} title="Account">
@@ -110,7 +110,7 @@ function ExtensionKey() {
       <Row label="Platform URL" value={typeof window === "undefined" ? "" : window.location.origin} />
       <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-zinc-600">
         <li>In the extension panel, enter this Platform URL.</li>
-        <li>Log in with your TalentGraph email and password, or paste a key created below.</li>
+        <li>Log in with your XS-Hunt email and password, or paste a key created below.</li>
         <li>Jobs, scoring, analyzed lists, shortlists and CVs all live here.</li>
       </ol>
       {key ? (

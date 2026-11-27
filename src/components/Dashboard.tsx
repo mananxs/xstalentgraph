@@ -223,7 +223,7 @@ export function Dashboard({ initialJobId, initialTab }: DashboardProps) {
         <EmptyState
           icon={<Sparkles className="size-8" aria-hidden="true" />}
           title="Create your first job"
-          description={`Paste a job description or upload it as PDF / DOC. TalentGraph reads it, searches ${source.name} and ranks the 10 best candidates.`}
+          description={`Paste a job description or upload it as PDF / DOC. XS-Hunt reads it, searches ${source.name} and ranks the 10 best candidates.`}
           actionLabel="Find candidates from a JD"
           onAction={() => setDialogOpen(true)}
         />

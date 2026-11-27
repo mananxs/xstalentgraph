@@ -8,12 +8,12 @@ export type SourceId = "naukri" | "linkedin" | "cutshort" | "github";
 
 export const SOURCE_LABEL: Record<SourceId, string> = { naukri: "Naukri", linkedin: "LinkedIn", cutshort: "Cutshort", github: "GitHub" };
 
-/** The platform's real standard weighting (src/server/ai/heuristic.ts SCORE_WEIGHTS), shown on the page and used by the demo. */
-export const STANDARD_WEIGHTS = { skills: 40, experience: 30, impact: 15, industry: 15 } as const;
-export const WEIGHTS_LABEL = `skills ${STANDARD_WEIGHTS.skills}, experience ${STANDARD_WEIGHTS.experience}, impact ${STANDARD_WEIGHTS.impact}, industry ${STANDARD_WEIGHTS.industry}`;
+/** Default weights of the seven evaluation dimensions (src/server/hunt/rubric.ts DEFAULT_WEIGHTS). Recruiters can edit them per job. */
+export const DEFAULT_WEIGHTS = { skills: 30, experience: 20, compensation: 10, availability: 10, location: 10, education: 5, career: 15 } as const;
+export const DIMENSION_NAMES = ["Skills", "Experience", "Compensation", "Availability", "Location", "Education", "Career background"] as const;
 
-export const DEMO_HREF = "mailto:demo@talentgraph.dev?subject=TalentGraph%20demo";
-export const APP_HREF = "/pipeline";
+export const DEMO_HREF = "mailto:demo@xs-hunt.com?subject=XS-Hunt%20demo";
+export const APP_HREF = "/dashboard";
 
 export interface DemoCandidate {
   id: string;
@@ -63,80 +63,18 @@ export const SAMPLE_PROMPTS = [
 ];
 
 export const AGENT_STEPS = [
-  "Reading the requirement and extracting must-have skills",
-  `Calibrating weights: ${WEIGHTS_LABEL}`,
-  "Searching Naukri, LinkedIn, Cutshort and GitHub",
-  "Scoring every profile and removing duplicates",
-  "Ranking the top 5 and storing their resumes",
-];
-
-export interface Story {
-  org: string;
-  kind: string;
-  headline: string;
-  metric: string;
-  metricLabel: string;
-  quote: string;
-  person: string;
-  role: string;
-}
-
-export const STORIES: Story[] = [
-  {
-    org: "Northbridge Staffing",
-    kind: "IT staffing, 40 recruiters",
-    headline: "Cut shortlist time from two days to forty minutes",
-    metric: "92%",
-    metricLabel: "less screening time",
-    quote: "We stopped opening every Resdex profile. The ranked list tells us who is worth a CV view, and the resume is already attached when we call.",
-    person: "Kavitha Raghunathan",
-    role: "Head of Delivery",
-  },
-  {
-    org: "Lattice Works",
-    kind: "Product company, 600 people",
-    headline: "Filled four platform roles without a single agency fee",
-    metric: "4 of 4",
-    metricLabel: "roles closed in-house",
-    quote: "LinkedIn, Naukri and GitHub candidates finally sit in one ranking. Our hiring managers review one list instead of three spreadsheets.",
-    person: "Arjun Malhotra",
-    role: "Talent Acquisition Lead",
-  },
-  {
-    org: "Crestline Consulting",
-    kind: "Boutique search firm",
-    headline: "Stopped losing resumes to expired Naukri links",
-    metric: "0",
-    metricLabel: "dead resume links",
-    quote: "Every shortlisted CV is stored the moment we save the card. Nobody has to hunt for a download again.",
-    person: "Neha Bhattacharya",
-    role: "Founder",
-  },
+  "Reading the job description and building the rubric",
+  "Searching and reading profiles that fit",
+  "Saving every candidate to the role pool",
+  "Scoring each candidate on seven dimensions",
+  "Ranking them and waiting for your approval",
 ];
 
 export const FAQS: Array<{ q: string; a: string }> = [
-  {
-    q: "How does Naukri work with our premium account?",
-    a: "The XS-NaukriAI extension runs inside your own logged-in Resdex session. It reads the result cards you can already see, scores them against your job, and only opens a profile when you decide it is worth a CV view. Nothing is scraped in the background and no credentials leave your browser.",
-  },
-  {
-    q: "Where do the resumes go?",
-    a: "When you save a card to the shortlist, the extension downloads the CV with your session and uploads it to TalentGraph. The file is stored in your workspace, so it opens from the platform even after the Naukri link expires. If a file cannot be downloaded, the CV text is kept and you are told exactly what is missing.",
-  },
-  {
-    q: "Can every recruiter score candidates differently?",
-    a: `No, on purpose. Scoring is standardised (${WEIGHTS_LABEL}), applied the same way to every job. Recruiters compare like with like, and hiring managers trust the ranking.`,
-  },
-  {
-    q: "Which sources can I search?",
-    a: "Naukri (through the extension), LinkedIn (Google X-Ray search), Cutshort and GitHub. They land in one pipeline, are de-duplicated, and are ranked together against the same job description.",
-  },
-  {
-    q: "Do I have to start scoring manually?",
-    a: "Yes. The extension has a clear start and stop control: red means idle, green means scoring is running. Nothing is analysed until you press start, and you can stop at any moment to protect your CV quota.",
-  },
-  {
-    q: "How is candidate data protected?",
-    a: "Contact details are never sent to the AI model. Resumes are stored in your own database, and the extension API is closed unless you set a private key.",
-  },
+  { q: "What is XS-Hunt?", a: "An AI recruiting workspace. You describe the role in plain English; agents build the rubric, search for matching profiles, score each one and rank them. You review the shortlist and decide who moves forward." },
+  { q: "Does anything happen without my approval?", a: "No. Agents do the groundwork, but opening a full profile, downloading a resume and moving a candidate between stages are your calls. Anything that may use credits asks you to confirm first." },
+  { q: "How are candidates scored?", a: "On a rubric of seven dimensions: skills, experience, compensation, availability, location, education and career background, plus optional custom criteria. Weights are editable per job and every version is kept." },
+  { q: "Where do resumes and profiles go?", a: "Into your XS-Hunt workspace, tied to the candidate and visible only to your organisation. Every view and download is written to an audit log." },
+  { q: "Can sourcing and AI scoring run separately?", a: "Yes. Sourcing and AI analysis each have their own Start, Pause, Resume and Stop. Collect candidates without spending any AI, score the ones you already have, or run both together." },
+  { q: "Is outreach, interviewing or scheduling included?", a: "Not yet. Those are on the roadmap and marked Coming soon on this page. Today XS-Hunt covers brief, search, scoring, shortlist, pipeline and resume vault." },
 ];

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireWriter } from "@/server/auth";
 import { ApiError, handleRoute, jsonOk } from "@/server/api/http";
 import { toJobDetailDto } from "@/server/api/dto";
 import { jobDraftSchema } from "@/server/api/jobInput";
@@ -33,6 +34,7 @@ const createSchema = jobDraftSchema.extend({
 /** POST /api/jobs - create a job (usually from a pasted / uploaded JD after the recruiter reviewed it). */
 export async function POST(request: Request): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     const recruiter = await requireRecruiter();
     const body = createSchema.parse(await request.json().catch(() => ({})));
     if (body.languages.length === 0 && body.locations.length === 0) {

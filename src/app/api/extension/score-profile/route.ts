@@ -7,6 +7,7 @@ import { cardKey } from "@/server/extension/cardParse";
 import { extensionRoute } from "@/server/extension/route";
 import { rubricHash } from "@/server/extension/rubric";
 import { auditProfile } from "@/server/extension/scoring";
+import { ensureRubric } from "@/server/hunt/store";
 import { findJobInOrganization } from "@/server/repositories/jobRepository";
 
 export const dynamic = "force-dynamic";
@@ -20,11 +21,12 @@ export async function POST(request: Request): Promise<Response> {
     const input = body.parse(await request.json().catch(() => ({})));
     const job = await findJobInOrganization(input.jobId, recruiter.organizationId);
     if (!job) throw new ApiError(404, "Job not found.");
-    const audit = await auditProfile(job, input.rawText);
+    const rubric = await ensureRubric(job, recruiter.id);
+    const audit = await auditProfile(job, rubric, input.rawText);
 
     const key = cardKey(input.rawText, input.profileUrl);
     const data = {
-      rubricHash: rubricHash(job),
+      rubricHash: rubricHash(job, rubric.version),
       score: audit.score,
       displayName: audit.extracted.fullName || null,
       profileUrl: input.profileUrl?.startsWith("http") ? input.profileUrl : null,

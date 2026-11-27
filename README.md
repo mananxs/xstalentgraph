@@ -1,39 +1,11 @@
-# TalentGraph
+# XS-Hunt
 
-> **Unified platform update (Naukri + new UI)**
-> - **Light, Juicebox-style UI.** Public landing page at `/` (hero sandbox, sections 01-06); the app lives at `/pipeline`, `/jobs`,
->   `/shortlists`, `/resume-match`, `/integrations`, `/settings`.
-> - **Naukri intake from the XS-NaukriAI extension.** `POST /api/ext/shortlist` stores the candidate, the score **and the resume file**
->   inside the platform, so resume links never 404. `GET /api/candidates/:id/resume` serves it; `/candidates/:id` shows it.
->   Set `EXTENSION_API_KEY` (16+ random characters) in `.env`, restart, and paste the same key into the extension.
->   Optional: `EXTENSION_RECRUITER_EMAIL` (defaults to `DEV_RECRUITER_EMAIL`). Run `npx prisma migrate deploy` for the new columns.
-> - **Login (email + password).** `/login`, signed httpOnly cookie, per-recruiter accounts. Create users with
->   `npm run user:create -- you@company.com "Your Name" "a-long-password"` (run it with the production `DATABASE_URL`). Run
->   `npx prisma migrate deploy` first (adds `passwordHash`). On Vercel keep `DEV_AUTH=false`; `AUTH_SECRET` is optional
->   (defaults to `TOKEN_ENCRYPTION_KEY`).
-> - **The Naukri extension now uses TalentGraph as its ONLY backend** (`extension/` folder, build with `npm install && npm run build`,
->   load `extension/dist` in Chrome). TalentGraph serves everything the extension used to get from its own web app, under
->   `/api/extension/*`: login (email + password, personal keys), jobs + rubric + Resdex search plan, JD to job, card scoring with a
->   per-job cache, deep audit, search sessions and the Analyzed list, save-to-shortlist, and CV upload. Cards scored in Naukri appear
->   in `/pipeline`, saved ones in `/shortlists`, and resumes open at `/candidates/:id`.
->   In the extension panel: enter this site's URL, then log in with your TalentGraph email and password (or paste a key from
->   Settings > "Create an extension key"). Needs `npx prisma migrate deploy` (adds `api_keys`, `search_sessions`, `card_scores`).
->   Contract tests: `cd extension && TG_URL=... TG_EMAIL=... TG_PASSWORD=... npm run test:backend`.
-
-> **What's new in this version**
-> - **Ratings never get stuck on "Failed".** Every AI problem (wrong/retired model name, invalid key, quota, overload,
->   models that reject JSON schema / thinking / system prompts) is handled automatically, and when no AI can answer the
->   candidate gets an offline **Quick score** (same three factors: skills 50, stack 30, location 20). Press
->   **Re-score with AI** later to upgrade Quick scores.
-> - **No second terminal needed:** `npm run dev` runs the worker inside the web server (`EMBEDDED_WORKER=true`).
-> - **Top 10 only:** each run fetches `SOURCING_MAX_PROFILES` (default 30) GitHub profiles and the pipeline shows the best 10.
-> - **Find candidates** with: the job's *current settings*, *pasted JD text*, or an *uploaded JD* (PDF / DOC / DOCX / TXT).
->   The JD is read (AI, or the offline parser), you review the fields, and a new job is created and searched.
-> - **Resume Match module** (the former CandidateMatch app, now part of TalentGraph): upload resumes for a job, get a
->   skill-by-skill ATS analysis (matched / partial / missing with evidence, hands-on checks, experience penalty), ranking,
->   shortlist, and anonymized PDFs with watermark.
-> - **Integrations:** GitHub (connected, green); LinkedIn, Naukri and Indeed shown as coming soon.
-> - Combined **Shortlists** page, **Settings** page (AI engine status), error boundaries and request timeouts.
+> **XS-Hunt** is a recruiting workspace: it controls sourcing from Naukri Resdex through your own signed-in browser (the XS-Hunt Chrome
+> extension), scores candidates on a seven-dimension rubric, keeps approved profiles and original resumes, and runs an eleven-stage ATS
+> pipeline. **Architecture, protocol, setup and limits: [docs/XS-HUNT.md](docs/XS-HUNT.md).** The extension source is in `extension/`.
+>
+> Quick start: `npm install`, `.env` from `.env.example`, `npx prisma migrate deploy`, `npm run user:create -- you@co.com "Name" "password"`,
+> `npm run dev`; then `cd extension && npm install && npm run build` and load `extension/dist` in Chrome.
 
 AI-assisted developer sourcing. A recruiter opens a job, the app searches GitHub for matching developers
 using **public profile metadata only** (bio, location, account age, languages, repository topics),

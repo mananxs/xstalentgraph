@@ -1,4 +1,5 @@
 import { ApiError, handleRoute, jsonOk } from "@/server/api/http";
+import { requireWriter } from "@/server/auth";
 import { requireRecruiter } from "@/server/auth";
 import { fileToText, readUpload } from "@/server/files/parse";
 import { extractJd } from "@/server/jd/extract";
@@ -14,6 +15,7 @@ export const maxDuration = 120;
  */
 export async function POST(request: Request): Promise<Response> {
   return handleRoute(async () => {
+    await requireWriter();
     await requireRecruiter();
     const form = await request.formData().catch(() => {
       throw new ApiError(400, "Send the JD as a file or as pasted text.");

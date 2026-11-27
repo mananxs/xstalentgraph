@@ -1,4 +1,4 @@
-/** Shapes exchanged with the XS-NaukriAI browser extension (mirror of the extension's src/shared/types.ts). */
+/** Shapes exchanged with the XS-Hunt browser extension (mirror of the extension's src/shared/types.ts). */
 
 export interface CardExtracted {
   fullName: string;
@@ -10,6 +10,10 @@ export interface CardExtracted {
   currentCtcLpa: number; // -1 unknown
   expectedCtcLpa: number; // -1 unknown
   location: string;
+  /** Extra facts read from the card (optional so older clients still type-check). */
+  education?: string;
+  previous?: string;
+  prefLocations?: string;
 }
 
 export type Worth = "open" | "review" | "skip";

@@ -22,6 +22,7 @@ import {
   DEFAULT_SETTINGS,
 } from "../shared/types";
 import { resultMatchesCard } from "../shared/util";
+import { createAgent } from "./agent";
 
 /**
  * Stateless router. Nothing lives in module variables (the MV3 worker is killed at will):
@@ -30,6 +31,13 @@ import { resultMatchesCard } from "../shared/util";
  * All authenticated calls to the Co-Pilot backend are proxied here so keys never touch the page context.
  */
 
+/** XS-Hunt agent: heartbeat + commands from the platform. See agent.ts. */
+const agent = createAgent({ chrome, fetch: (...a) => fetch(...a), version: chrome.runtime.getManifest().version });
+const ensureAlarm = () => chrome.alarms?.create("xs-hunt-tick", { periodInMinutes: 0.5, delayInMinutes: 0.1 });
+chrome.alarms?.onAlarm.addListener((a) => a.name === "xs-hunt-tick" && void agent.tick(true).catch(() => {}));
+ensureAlarm();
+void agent.tick(true).catch(() => {});
+
 /** Scoring always starts STOPPED (red): a browser restart, an update or a login can never burn AI quota by surprise. */
 async function stopScoring() {
   const cur = ((await chrome.storage.local.get(K.settings))[K.settings] as Partial<Settings> | undefined) ?? {};
@@ -37,6 +45,7 @@ async function stopScoring() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
+  ensureAlarm();
   await stopScoring().catch(() => {});
   await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   // Inject into Resdex tabs that were already open before install/update.
@@ -44,6 +53,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   for (const t of tabs) if (t.id) await injectContent(t.id);
 });
 chrome.runtime.onStartup.addListener(() => {
+  ensureAlarm();
+  void agent.tick(true).catch(() => {});
   void stopScoring().catch(() => {});
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 });
@@ -185,6 +196,17 @@ async function route(msg: ContentToBg | PanelToBg, sender: chrome.runtime.Messag
       return enqueueSave(msg.tabId, msg.cards);
     case "FOCUS_CARD":
       return toTab(msg.tabId, { type: "FOCUS_CARD", domId: msg.domId });
+    case "AGENT_TICK":
+      void agent.tick().catch(() => {});
+      return null;
+    case "AGENT_CAPTURE":
+      return agent.capture(msg.taskId, msg.page, msg.cards);
+    case "AGENT_EVENT":
+      await agent.event(msg.taskId, msg.kind, msg.message, msg.data ?? {});
+      return null;
+    case "AGENT_RUN_STATE":
+      await agent.onRunState(msg.taskId, msg.state, msg.reason);
+      return null;
     case "ENSURE_CONTENT":
       return ensureContent(msg.tabId);
   }
@@ -481,7 +503,7 @@ async function ensureContent(tabId: number) {
 
 async function injectContent(tabId: number) {
   try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js", "agent.js"] });
     return true;
   } catch {
     return false; // not a Resdex tab / no host permission

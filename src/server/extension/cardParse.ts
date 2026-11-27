@@ -75,6 +75,23 @@ function findLocation(all: string[], text: string): string {
   return any ? any[0]!.toUpperCase() + any.slice(1) : "";
 }
 
+const LABELS = /^(current|previous|education|key skills?|pref\.? locations?|may also know|similar profiles|notice period)\b/i;
+
+/** Lines that follow a label until the next label, e.g. the Education block of a Resdex card. */
+function block(all: string[], label: RegExp): string {
+  const out: string[] = [];
+  for (let i = 0; i < all.length; i++) {
+    if (!label.test(all[i]!) || !/^(education|previous|pref\.? locations?)\s*:?\s*$/i.test(all[i]!.replace(/\s*:\s*/, ""))) {
+      const inline = new RegExp(`^(?:${label.source})\\s*[:\\-]\\s*(.+)$`, "i").exec(all[i]!);
+      if (inline?.[1]) return inline[1].trim();
+      continue;
+    }
+    for (let j = i + 1; j < all.length && !LABELS.test(all[j]!) && out.length < 4; j++) out.push(all[j]!);
+    break;
+  }
+  return out.join("; ");
+}
+
 export function parseCard(rawText: string): CardExtracted & { noticePeriod: string; noticeDays: number } {
   const all = lines(rawText);
   const text = all.join("\n");
@@ -100,6 +117,9 @@ export function parseCard(rawText: string): CardExtracted & { noticePeriod: stri
     location: findLocation(all, text),
     noticePeriod: notice.label,
     noticeDays: notice.days,
+    education: block(all, /education/i),
+    previous: block(all, /previous/i),
+    prefLocations: block(all, /pref\.? locations?/i),
   };
 }
 

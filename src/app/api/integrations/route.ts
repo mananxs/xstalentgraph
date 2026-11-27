@@ -33,15 +33,13 @@ export async function GET(): Promise<Response> {
       : { id: "linkedin", name: "LinkedIn", status: "connected", detail: "Profiles found with Google X-Ray search (Apify); phone numbers read free from search snippets" };
 
     const naukriCount = await prisma.candidate.count({ where: { source: "naukri" } }).catch(() => 0);
-    const extensionKeys = await prisma.apiKey.count().catch(() => 0);
-    const naukri: IntegrationDto = !env.EXTENSION_API_KEY && extensionKeys === 0 && naukriCount === 0
-      ? { id: "naukri", name: "Naukri", status: "not_connected", detail: "Open the XS-NaukriAI extension, enter this site's URL and log in with your TalentGraph email and password." }
-      : {
-          id: "naukri",
-          name: "Naukri",
-          status: "connected",
-          detail: naukriCount > 0 ? `Resdex via the XS-NaukriAI extension. ${naukriCount} candidate${naukriCount === 1 ? "" : "s"} received, resumes stored here.` : "Resdex via the XS-NaukriAI extension. Waiting for the first shortlisted card.",
-        };
+    const beat = await prisma.extensionConnection.findFirst({ where: { organizationId: recruiter.organizationId }, orderBy: { lastSeenAt: "desc" } }).catch(() => null);
+    const live = beat ? Date.now() - beat.lastSeenAt.getTime() < 45_000 : false;
+    const naukri: IntegrationDto = !beat
+      ? { id: "naukri", name: "Naukri", status: "not_connected", detail: "No extension has connected yet. Install the XS-Hunt extension, enter this site's address and log in." }
+      : live
+        ? { id: "naukri", name: "Naukri", status: "connected", detail: `Extension connected. Naukri session: ${beat.naukriState.replace("_", " ")}. ${naukriCount} Naukri candidate${naukriCount === 1 ? "" : "s"} so far.` }
+        : { id: "naukri", name: "Naukri", status: "not_connected", detail: `Extension offline (last heartbeat ${Math.round((Date.now() - beat.lastSeenAt.getTime()) / 60000)} min ago).` };
 
     const integrations: IntegrationDto[] = [
       github,

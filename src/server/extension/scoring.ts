@@ -5,6 +5,10 @@ import type { JobDetails } from "@/server/repositories/jobRepository";
 import { extractContacts } from "./contacts";
 import { parseCard, parseCtcLpa, parseNotice } from "./cardParse";
 import type { Audit, CardResult, Worth } from "./types";
+import { evaluateCandidate, type EvaluationResult } from "@/server/hunt/evaluate";
+import { factsFromParsed } from "@/server/hunt/facts";
+import type { ActiveRubric } from "@/server/hunt/store";
+import { TIER_LABEL, type Tier } from "@/server/hunt/stages";
 
 const log = createLogger("ext-scoring");
 
@@ -35,44 +39,36 @@ function profileTextOf(parsed: ReturnType<typeof parseCard>, rawText: string): s
     .join("\n");
 }
 
-const tierOf = (score: number) => (score >= 80 ? "Strong fit" : score >= 60 ? "Good fit" : score >= 40 ? "Partial fit" : "Weak fit");
-
-export function worthOf(score: number, mustHaveCoverage: number): Worth {
-  if (score >= 75 && mustHaveCoverage >= 0.5) return "open";
-  if (score >= 55) return "review";
-  return "skip";
-}
-
+const WORTH_OF: Record<Tier, Worth> = { strong: "open", potential: "review", weak: "skip", provisional: "review", needs_info: "review" };
 const join = (items: string[], max = 3) => items.slice(0, max).join(", ");
 
-function verdictOf(score: number, matched: string[], missing: string[]): string {
-  if (matched.length === 0) return missing.length ? `No evidence of ${join(missing, 2)} on the card.` : "Not enough on the card to judge.";
-  const strength = `${score >= 75 ? "Strong" : score >= 55 ? "Decent" : "Partial"} ${join(matched)} fit`;
-  return missing.length ? `${strength}; lacks ${join(missing, 2)}.` : `${strength}.`;
+function verdictOf(r: EvaluationResult): string {
+  const lead = r.matchedSkills.length ? `${r.band === "strong" ? "Strong" : r.band === "potential" ? "Decent" : "Partial"} ${join(r.matchedSkills)} fit` : r.missingSkills.length ? `No evidence of ${join(r.missingSkills, 2)}` : "Not enough shown to judge";
+  const tail = r.missingSkills.length && r.matchedSkills.length ? `; lacks ${join(r.missingSkills, 2)}` : "";
+  const note = r.tier === "provisional" || r.tier === "needs_info" ? ` (${TIER_LABEL[r.tier]}: ${r.missingInfo.slice(0, 3).join(", ") || "limited data"} not shown)` : "";
+  return `${lead}${tail}.${note}`;
 }
 
-/** Scores ONE card. Offline and deterministic (the same weighted model as the rest of TalentGraph), so cards can never be mixed up. */
-export function scoreCard(job: JobDetails, domId: string, rawText: string): CardResult {
+/** Scores ONE card with the standard 7-dimension evaluator. Offline and deterministic, so cards can never be mixed up. */
+export function scoreCard(job: JobDetails, rubric: ActiveRubric, domId: string, rawText: string): CardResult {
   const parsed = parseCard(rawText);
-  const match = scoreCandidate(scoringJob(job), profileTextOf(parsed, rawText), { model: "naukri-card" });
-  const worth = worthOf(match.score, match.mustHaveCoverage);
-  const reasons: string[] = [];
-  const needed = job.experienceYears && job.experienceYears > 0 ? job.experienceYears : null;
-  if (parsed.expYears >= 0 && needed) reasons.push(`${parsed.expYears} yrs vs ${needed}+ needed`);
-  if (parsed.noticeDays >= 0) reasons.push(`Notice ${parsed.noticePeriod}`);
-  reasons.push(`${Math.round(match.mustHaveCoverage * 100)}% of must-have skills shown`);
+  const r = evaluateCandidate(scoringJob(job), rubric.data, factsFromParsed(parsed, rawText));
+  const reasons = Object.entries(r.dimensions)
+    .filter(([, d]) => d.status !== "skipped")
+    .map(([k, d]) => `${k.replace("custom_", "custom ")}: ${d.status}`)
+    .slice(0, 6);
   return {
     domId,
-    confidence: parsed.skills.length >= 3 ? "high" : "medium",
-    score: match.score,
-    tier: tierOf(match.score),
-    matchedSkills: match.matchedSkills,
-    missingSkills: match.missingSkills,
+    confidence: r.evidenceCoverage >= 0.7 ? "high" : r.evidenceCoverage >= 0.4 ? "medium" : "low",
+    score: r.total,
+    tier: TIER_LABEL[r.tier],
+    matchedSkills: r.matchedSkills,
+    missingSkills: r.missingSkills,
     noticePeriod: parsed.noticePeriod,
     noticeDays: parsed.noticeDays,
     ctc: parsed.currentCtcLpa >= 0 ? `${parsed.currentCtcLpa} LPA` : "Not mentioned",
-    oneLineVerdict: verdictOf(match.score, match.matchedSkills, match.missingSkills),
-    worth,
+    oneLineVerdict: verdictOf(r),
+    worth: WORTH_OF[r.tier],
     worthReasons: reasons,
     extracted: {
       fullName: parsed.fullName,
@@ -84,6 +80,9 @@ export function scoreCard(job: JobDetails, domId: string, rawText: string): Card
       currentCtcLpa: parsed.currentCtcLpa,
       expectedCtcLpa: -1,
       location: parsed.location,
+      education: parsed.education,
+      previous: parsed.previous,
+      prefLocations: parsed.prefLocations,
     },
   };
 }
@@ -91,10 +90,11 @@ export function scoreCard(job: JobDetails, domId: string, rawText: string): Card
 const fit = (ok: boolean | null, risk: boolean): "good" | "ok" | "risk" | "unknown" => (ok === null ? "unknown" : risk ? "risk" : ok ? "good" : "ok");
 
 /** Deep audit of an opened profile: deterministic score and notes; the AI (when configured) only improves the wording. */
-export async function auditProfile(job: JobDetails, rawText: string): Promise<Audit> {
+export async function auditProfile(job: JobDetails, rubric: ActiveRubric, rawText: string): Promise<Audit> {
   const parsed = parseCard(rawText);
   const contacts = extractContacts(rawText);
-  const match = scoreCandidate(scoringJob(job), profileTextOf(parsed, rawText.slice(0, 9000)), { model: "naukri-profile" });
+  const evaluation = evaluateCandidate(scoringJob(job), rubric.data, factsFromParsed(parsed, rawText.slice(0, 20_000)));
+  const match = { score: evaluation.total, matchedSkills: evaluation.matchedSkills, missingSkills: evaluation.missingSkills, breakdown: { impact: evaluation.dimensions.career?.score ?? 0 } };
   const needed = job.experienceYears && job.experienceYears > 0 ? job.experienceYears : null;
   const years = parsed.expYears;
   const expectedMatch = /expected(?: ctc)?[:\s₹]*([\d.]+)\s*(?:lacs?|lakhs?|lpa)/i.exec(rawText);
@@ -115,15 +115,15 @@ export async function auditProfile(job: JobDetails, rawText: string): Promise<Au
       phone: contacts.phones[0] ?? "",
     },
     score: match.score,
-    tier: tierOf(match.score),
+    tier: TIER_LABEL[evaluation.tier],
     matchedSkills: match.matchedSkills,
     missingSkills: match.missingSkills,
-    strengths: [
+    strengths: evaluation.strengths.length ? evaluation.strengths : [
       match.matchedSkills.length ? `Evidence of ${join(match.matchedSkills, 5)}` : "",
       match.breakdown.impact >= 50 ? "Describes measurable achievements" : "",
       years >= 0 && needed && years >= needed ? `${years} years of experience (needs ${needed}+)` : "",
     ].filter(Boolean),
-    risks: [
+    risks: evaluation.concerns.length ? evaluation.concerns : [
       match.missingSkills.length ? `No evidence of ${join(match.missingSkills, 4)}` : "",
       years >= 0 && needed && years < needed ? `Only ${years} years against ${needed}+ needed` : "",
       notice.days > 60 ? `Long notice period (${notice.label})` : "",
@@ -137,7 +137,7 @@ export async function auditProfile(job: JobDetails, rawText: string): Promise<Au
       ...match.matchedSkills.slice(0, 2).map((skill) => `Walk me through the hardest ${skill} problem you solved in your last role.`),
       ...match.missingSkills.slice(0, 2).map((skill) => `How have you worked with ${skill}, or what would you need to get productive in it?`),
     ].slice(0, 4),
-    verdict: verdictOf(match.score, match.matchedSkills, match.missingSkills),
+    verdict: verdictOf(evaluation),
   };
 
   const llm = getLlmClient();

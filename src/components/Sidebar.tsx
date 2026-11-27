@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, Briefcase, FileSearch, LayoutDashboard, LogOut, Plug, Settings } from "lucide-react";
+import { BarChart3, Bookmark, Briefcase, Gauge, Kanban, LogOut, Plug, Settings, ShieldCheck, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -15,19 +15,27 @@ interface NavItem {
 
 const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   {
-    title: "Sourcing",
+    title: "Workspace",
     items: [
-      { href: "/pipeline", label: "Pipeline", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", icon: Gauge },
       { href: "/jobs", label: "Jobs", icon: Briefcase },
+      { href: "/pipeline", label: "Pipeline", icon: Kanban },
+      { href: "/talent-pool", label: "Talent Pool", icon: Users },
       { href: "/shortlists", label: "Shortlists", icon: Bookmark },
     ],
   },
-  { title: "Modules", items: [{ href: "/resume-match", label: "Resume Match", icon: FileSearch }] },
   {
-    title: "Platform",
+    title: "Management",
     items: [
       { href: "/integrations", label: "Integrations", icon: Plug },
+      { href: "/reports", label: "Reports & Analytics", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Administration",
+    items: [
       { href: "/settings", label: "Settings", icon: Settings },
+      { href: "/team", label: "Team & Permissions", icon: ShieldCheck },
     ],
   },
 ];
@@ -38,7 +46,7 @@ export function Sidebar() {
 
   return (
     <aside className="sticky top-0 flex h-screen w-14 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 md:w-56">
-      <Link href="/" className="flex h-14 items-center gap-2 border-b border-zinc-200 px-3 md:px-4" aria-label="TalentGraph home">
+      <Link href="/" className="flex h-14 items-center gap-2 border-b border-zinc-200 px-3 md:px-4" aria-label="XS-Hunt home">
         <Logo />
       </Link>
 
