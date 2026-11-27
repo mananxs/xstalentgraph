@@ -6,6 +6,7 @@ import { extractContacts } from "./contacts";
 import { parseCard, parseCtcLpa, parseNotice } from "./cardParse";
 import type { Audit, CardResult, Worth } from "./types";
 import { evaluateCandidate, type EvaluationResult } from "@/server/hunt/evaluate";
+import { isAiEngine, judgeCandidate } from "@/server/hunt/aiJudge";
 import { factsFromParsed } from "@/server/hunt/facts";
 import type { ActiveRubric } from "@/server/hunt/store";
 import { TIER_LABEL, type Tier } from "@/server/hunt/stages";
@@ -49,10 +50,21 @@ function verdictOf(r: EvaluationResult): string {
   return `${lead}${tail}.${note}`;
 }
 
-/** Scores ONE card with the standard 7-dimension evaluator. Offline and deterministic, so cards can never be mixed up. */
+/** Scores ONE card with the offline rule engine (the fallback, and what tests use). */
 export function scoreCard(job: JobDetails, rubric: ActiveRubric, domId: string, rawText: string): CardResult {
   const parsed = parseCard(rawText);
   const r = evaluateCandidate(scoringJob(job), rubric.data, factsFromParsed(parsed, rawText));
+  return cardResultOf(parsed, r, domId, verdictOf(r), "rules");
+}
+
+/** Scores ONE card: the AI judges it against the JD and rubric (one card per call, so cards can never be mixed up); rules if no AI. */
+export async function scoreCardAi(job: JobDetails, rubric: ActiveRubric, domId: string, rawText: string): Promise<CardResult> {
+  const parsed = parseCard(rawText);
+  const judged = await judgeCandidate({ ...scoringJob(job), description: job.description }, rubric.data, factsFromParsed(parsed, rawText), {});
+  return cardResultOf(parsed, judged.result, domId, judged.summary || verdictOf(judged.result), isAiEngine(judged.engine) ? "ai" : "rules");
+}
+
+function cardResultOf(parsed: ReturnType<typeof parseCard>, r: EvaluationResult, domId: string, verdict: string, engine: "ai" | "rules"): CardResult {
   const reasons = Object.entries(r.dimensions)
     .filter(([, d]) => d.status !== "skipped")
     .map(([k, d]) => `${k.replace("custom_", "custom ")}: ${d.status}`)
@@ -67,7 +79,8 @@ export function scoreCard(job: JobDetails, rubric: ActiveRubric, domId: string, 
     noticePeriod: parsed.noticePeriod,
     noticeDays: parsed.noticeDays,
     ctc: parsed.currentCtcLpa >= 0 ? `${parsed.currentCtcLpa} LPA` : "Not mentioned",
-    oneLineVerdict: verdictOf(r),
+    oneLineVerdict: verdict,
+    scoredBy: engine,
     worth: WORTH_OF[r.tier],
     worthReasons: reasons,
     extracted: {
@@ -93,7 +106,8 @@ const fit = (ok: boolean | null, risk: boolean): "good" | "ok" | "risk" | "unkno
 export async function auditProfile(job: JobDetails, rubric: ActiveRubric, rawText: string): Promise<Audit> {
   const parsed = parseCard(rawText);
   const contacts = extractContacts(rawText);
-  const evaluation = evaluateCandidate(scoringJob(job), rubric.data, factsFromParsed(parsed, rawText.slice(0, 20_000)));
+  const judged = await judgeCandidate({ ...scoringJob(job), description: job.description }, rubric.data, factsFromParsed(parsed, rawText.slice(0, 20_000)), {});
+  const evaluation = judged.result;
   const match = { score: evaluation.total, matchedSkills: evaluation.matchedSkills, missingSkills: evaluation.missingSkills, breakdown: { impact: evaluation.dimensions.career?.score ?? 0 } };
   const needed = job.experienceYears && job.experienceYears > 0 ? job.experienceYears : null;
   const years = parsed.expYears;
@@ -137,7 +151,7 @@ export async function auditProfile(job: JobDetails, rubric: ActiveRubric, rawTex
       ...match.matchedSkills.slice(0, 2).map((skill) => `Walk me through the hardest ${skill} problem you solved in your last role.`),
       ...match.missingSkills.slice(0, 2).map((skill) => `How have you worked with ${skill}, or what would you need to get productive in it?`),
     ].slice(0, 4),
-    verdict: verdictOf(evaluation),
+    verdict: judged.summary || verdictOf(evaluation),
   };
 
   const llm = getLlmClient();

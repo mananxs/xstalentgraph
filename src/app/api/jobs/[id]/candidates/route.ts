@@ -22,6 +22,6 @@ export async function GET(request: Request, context: Ctx): Promise<Response> {
   return handleRoute(async () => {
     const { recruiter, job } = await requireJobAccess((await context.params).id);
     const q = query.parse(Object.fromEntries(new URL(request.url).searchParams));
-    return NextResponse.json(await listCandidateRows({ organizationId: recruiter.organizationId, jobId: job.id, ...q }));
+    return NextResponse.json(await listCandidateRows({ viewer: recruiter, jobId: job.id, ...q }));
   });
 }

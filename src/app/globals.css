@@ -41,7 +41,7 @@ h3 {
 
 /* Cards: white, hairline border, no glow. */
 .card-surface {
-  background: #ffffff;
+  background: var(--color-surface);
   box-shadow: 0 1px 2px rgb(9 9 11 / 0.04);
 }
 
@@ -50,7 +50,7 @@ h3 {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   letter-spacing: 0.08em;
-  color: #71717a;
+  color: var(--color-zinc-500);
   text-transform: lowercase;
 }
 
@@ -111,7 +111,7 @@ html {
   --cool: #bcd3ff;
   font-family: var(--font-display), var(--font-inter), system-ui, sans-serif;
   color: var(--ink);
-  background: #fff;
+  background: var(--color-white);
   overflow-x: clip;
 }
 .xs-land .serif { font-family: var(--font-serif), Georgia, serif; font-style: italic; font-weight: 400; letter-spacing: -0.01em; }
@@ -123,7 +123,7 @@ html {
   radial-gradient(60% 60% at 15% 20%, #ffd9c2 0%, transparent 60%),
   radial-gradient(55% 55% at 85% 15%, #e0d4ff 0%, transparent 60%),
   radial-gradient(60% 60% at 70% 85%, #ffc2d6 0%, transparent 60%),
-  radial-gradient(50% 50% at 10% 90%, #cfe2ff 0%, transparent 60%), #fff; }
+  radial-gradient(50% 50% at 10% 90%, #cfe2ff 0%, transparent 60%), var(--color-white); }
 .xs-land .dots { background-image: radial-gradient(rgb(11 11 18 / 0.14) 1px, transparent 1px); background-size: 22px 22px; }
 .xs-land .glass { background: rgb(255 255 255 / 0.62); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid rgb(255 255 255 / 0.7); box-shadow: 0 10px 40px -12px rgb(60 30 90 / 0.25); }
 .xs-land :focus-visible { outline: 2px solid #6d4cff; outline-offset: 3px; }
@@ -150,3 +150,45 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .xs-land .drift-a, .xs-land .drift-b, .xs-land .floaty, .xs-land .wave > i, .xs-land .scanline, .xs-land .ring-pulse, .xs-land .mq-l, .xs-land .mq-r { animation: none; }
 }
+
+/* ───────────────────────── themes: dark -> light -> warm ─────────────────────────
+   Tailwind 4 reads its palette from CSS variables, so a theme is just a set of variable overrides on <html data-theme="...">.
+   (Unlayered on purpose: it must win over Tailwind's @layer theme defaults.) "light" is the default and needs no overrides. */
+html { color-scheme: light; }
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-white: #14141a; --color-surface: #14141a; --color-canvas: #0c0c10; --color-hairline: #2b2b35;
+  --color-ink: #f5f5f8; --color-ink-2: #a9a9b6;
+  --color-zinc-50: #101015; --color-zinc-100: #1c1c24; --color-zinc-200: #2b2b35; --color-zinc-300: #3b3b48; --color-zinc-400: #727280;
+  --color-zinc-500: #9494a2; --color-zinc-600: #adadb9; --color-zinc-700: #c6c6cf; --color-zinc-800: #dddde3; --color-zinc-900: #ececf0; --color-zinc-950: #f6f6f9;
+  --color-accent: #6a62f0; --color-accent-strong: #8179ff;
+  --color-tier-high: #4ade80; --color-tier-mid: #fbbf24; --color-tier-low: #fb7185;
+  --color-amber-50: #2a2112; --color-amber-100: #3a2c14; --color-amber-200: #5a4318; --color-amber-500: #f59e0b; --color-amber-600: #fbbf24; --color-amber-700: #f5b94a; --color-amber-800: #f8c964; --color-amber-900: #fbd98a;
+  --color-emerald-50: #0f261b; --color-emerald-100: #143222; --color-emerald-200: #1f5a3f; --color-emerald-600: #34d399; --color-emerald-700: #5ee9a0; --color-emerald-800: #86efac; --color-emerald-900: #a7f3d0;
+  --color-rose-50: #2b1419; --color-rose-100: #3a1a22; --color-rose-200: #5c2430; --color-rose-600: #fb7185; --color-rose-700: #fb8da0; --color-rose-800: #fda4b4; --color-rose-900: #fecdd6;
+  --color-indigo-50: #1b1b3a; --color-indigo-100: #24244d; --color-indigo-200: #3a3a7a; --color-indigo-700: #a5a3ff; --color-indigo-900: #c7c6ff;
+  --color-sky-700: #7dd3fc; --color-orange-600: #fb923c;
+}
+html[data-theme="dark"] .xs-land { --ink: #f5f5f8; --ink-2: #a9a9b6; --line: rgb(255 255 255 / 0.1); --land-bg: #0c0c10; }
+html[data-theme="dark"] .xs-land .glass { background: rgb(28 28 38 / 0.62); border-color: rgb(255 255 255 / 0.1); box-shadow: 0 10px 40px -12px rgb(0 0 0 / 0.6); }
+html[data-theme="dark"] .xs-land .mesh { background: radial-gradient(60% 60% at 15% 20%, rgb(255 138 61 / 0.28) 0%, transparent 60%), radial-gradient(55% 55% at 85% 15%, rgb(139 92 246 / 0.32) 0%, transparent 60%), radial-gradient(60% 60% at 70% 85%, rgb(255 79 139 / 0.22) 0%, transparent 60%), radial-gradient(50% 50% at 10% 90%, rgb(59 130 246 / 0.2) 0%, transparent 60%), #0c0c10; }
+html[data-theme="dark"] .xs-land .grad-sunrise { background: linear-gradient(135deg, #3a1f12, #3b1424 60%, #2a1b4a); }
+html[data-theme="dark"] .xs-land [class*="bg-[var(--ink)]"] { color: #0c0c10 !important; }
+html[data-theme="dark"] .xs-land .dots { background-image: radial-gradient(rgb(255 255 255 / 0.12) 1px, transparent 1px); }
+
+html[data-theme="warm"] {
+  --color-white: #fffaf2; --color-surface: #fffaf2; --color-canvas: #faf1e2; --color-hairline: #e8d6bb;
+  --color-ink: #2a1d12; --color-ink-2: #6b563f;
+  --color-zinc-50: #fbf3e6; --color-zinc-100: #f5e9d6; --color-zinc-200: #e8d6bb; --color-zinc-300: #d8c0a0; --color-zinc-400: #a88f6e;
+  --color-zinc-500: #7d6446; --color-zinc-600: #6b563f; --color-zinc-700: #55412d; --color-zinc-800: #402f1f; --color-zinc-900: #33251a; --color-zinc-950: #261b11;
+  --color-accent: #c2410c; --color-accent-strong: #9a3412;
+  --color-indigo-50: #fdeede; --color-indigo-100: #fbe0c4; --color-indigo-200: #f4c79d; --color-indigo-700: #b34510; --color-indigo-900: #7c2d0c;
+}
+html[data-theme="warm"] .xs-land { --ink: #2a1d12; --ink-2: #6b563f; --line: rgb(42 29 18 / 0.12); --land-bg: #fffaf2; }
+html[data-theme="warm"] .xs-land .glass { background: rgb(255 248 236 / 0.7); border-color: rgb(255 255 255 / 0.7); box-shadow: 0 10px 40px -12px rgb(150 80 20 / 0.28); }
+html[data-theme="warm"] .xs-land .mesh { background: radial-gradient(60% 60% at 15% 20%, #ffd0a8 0%, transparent 60%), radial-gradient(55% 55% at 85% 15%, #ffe2b8 0%, transparent 60%), radial-gradient(60% 60% at 70% 85%, #ffbfa8 0%, transparent 60%), radial-gradient(50% 50% at 10% 90%, #ffe9c9 0%, transparent 60%), #fffaf2; }
+html[data-theme="warm"] .xs-land .grad-sunrise { background: linear-gradient(135deg, #ffb35c, #ff8a5c 60%, #ff9f7a); }
+
+/* The sticky theme switch fades colours instead of snapping. */
+html.theme-fade, html.theme-fade * { transition: background-color 0.35s ease, border-color 0.35s ease, color 0.2s ease !important; }

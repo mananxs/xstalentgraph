@@ -14,7 +14,7 @@ export async function GET(_r: Request, context: Ctx): Promise<Response> {
   return huntRoute(async () => {
     const { recruiter, job } = await requireJobAccess((await context.params).id);
     const latest = await prisma.sourcingTask.findFirst({ where: { jobId: job.id, organizationId: recruiter.organizationId }, orderBy: { createdAt: "desc" }, select: { id: true } });
-    return NextResponse.json({ task: latest ? await taskView(latest.id, recruiter.organizationId) : null });
+    return NextResponse.json({ task: latest ? await taskView(latest.id, recruiter) : null });
   });
 }
 
@@ -27,6 +27,6 @@ export async function POST(request: Request, context: Ctx): Promise<Response> {
     const { recruiter, job } = await requireJobAccess((await context.params).id);
     const input = body.parse(await request.json().catch(() => ({})));
     const task = await createTask(job, recruiter, input);
-    return NextResponse.json({ task: await taskView(task.id, recruiter.organizationId) }, { status: 201 });
+    return NextResponse.json({ task: await taskView(task.id, recruiter) }, { status: 201 });
   });
 }

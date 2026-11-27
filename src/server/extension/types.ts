@@ -20,6 +20,8 @@ export type Worth = "open" | "review" | "skip";
 
 export interface CardResult {
   domId: string;
+  /** ai = judged by the model against the JD and rubric; rules = the offline rule engine (no AI was available). */
+  scoredBy?: "ai" | "rules";
   key?: string;
   cached?: boolean;
   confidence?: "high" | "medium" | "low";

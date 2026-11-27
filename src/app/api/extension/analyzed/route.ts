@@ -16,7 +16,7 @@ const query = z.object({ jobId: uuidSchema, minScore: z.coerce.number().int().mi
 export async function GET(request: Request): Promise<Response> {
   return extensionRoute(request, async (recruiter) => {
     const input = query.parse(Object.fromEntries(new URL(request.url).searchParams));
-    const job = await findJobInOrganization(input.jobId, recruiter.organizationId);
+    const job = await findJobInOrganization(input.jobId, recruiter.organizationId, recruiter);
     if (!job) throw new ApiError(404, "Job not found.");
     const hash = rubricHash(job, (await ensureRubric(job, recruiter.id)).version);
     const where = { jobId: job.id, recruiterId: recruiter.id, ...(input.searchSessionId ? { sessionIds: { has: input.searchSessionId } } : {}) };

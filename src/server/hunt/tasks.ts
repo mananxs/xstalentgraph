@@ -1,3 +1,4 @@
+import { setActiveJob } from "@/server/hunt/activeJob";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
@@ -5,12 +6,18 @@ import { parseCard } from "@/server/extension/cardParse";
 import { jobSummary, resdexPlan } from "@/server/extension/rubric";
 import type { RecruiterContext } from "@/server/repositories/recruiterRepository";
 import { findJobInOrganization, type JobDetails } from "@/server/repositories/jobRepository";
+import { taskWhere, type Viewer } from "@/server/access";
 import { personKey } from "@/server/naukri/schema";
 import { factsFromParsed } from "./facts";
 import { configuredFilters, filtersFromPlan, filtersSchema, limitsSchema, toSearchFill, type SearchFilters, type TaskLimits } from "./filters";
 import { ensureRubric, evaluateAndStore, recordEvent, resolveCandidate } from "./store";
 
 /** An extension counts as connected only while its heartbeat is fresh. */
+/** A task is found by id inside the caller's scope: a bare organization id (trusted internal use) or a viewer (HRs see only their own tasks). */
+type Scope = string | Viewer;
+const orgOf = (scope: Scope) => (typeof scope === "string" ? scope : scope.organizationId);
+const taskFilter = (taskId: string, scope: Scope, own = false) => ({ id: taskId, ...(typeof scope === "string" ? { organizationId: scope } : own ? { organizationId: scope.organizationId, createdById: scope.id } : taskWhere(scope)) });
+
 export const HEARTBEAT_FRESH_MS = 45_000;
 /** A command the extension acknowledged but never finished is offered again after this long (browser restarted, worker killed ...). */
 export const ACK_STALE_MS = 120_000;
@@ -45,6 +52,7 @@ export async function createTask(job: JobDetails, recruiter: RecruiterContext, o
   const rubric = await ensureRubric(job, recruiter.id);
   const filters = overrides.filters ? filtersSchema.parse(overrides.filters) : filtersFromPlan(resdexPlan(job));
   const limits = limitsSchema.parse(overrides.limits ?? {});
+  await setActiveJob(recruiter.id, job.id); // the extension switches to this job on its next heartbeat
   const task = await prisma.sourcingTask.create({
     data: { organizationId: job.organizationId, jobId: job.id, createdById: recruiter.id, status: "active", filters: json(filters), limits: json(limits), rubricVersion: rubric.version },
   });
@@ -58,15 +66,15 @@ export async function queueCommand(taskId: string, type: string, payload: Record
 }
 
 /** What the extension needs to know about the job: summary (title, rubric, search plan) so its scoring uses the right job. */
-export async function jobPayload(jobId: string, organizationId: string, recruiterId: string) {
-  const job = await findJobInOrganization(jobId, organizationId);
+export async function jobPayload(jobId: string, scope: Scope, recruiterId: string) {
+  const job = await findJobInOrganization(jobId, orgOf(scope), typeof scope === "string" ? undefined : scope);
   if (!job) return null;
   const rubric = await ensureRubric(job, recruiterId);
   return { job: jobSummary(job, 0, rubric.version), description: job.description.slice(0, 20_000), rubricVersion: rubric.version };
 }
 
-export async function taskView(taskId: string, organizationId: string) {
-  const task = await prisma.sourcingTask.findFirst({ where: { id: taskId, organizationId } });
+export async function taskView(taskId: string, scope: Scope) {
+  const task = await prisma.sourcingTask.findFirst({ where: taskFilter(taskId, scope) });
   if (!task) return null;
   const [events, commands, pending, failed] = await Promise.all([
     prisma.taskEvent.findMany({ where: { taskId }, orderBy: { createdAt: "desc" }, take: 30 }),
@@ -99,7 +107,8 @@ export async function taskView(taskId: string, organizationId: string) {
  * a command is queued for the extension; the extension's own report later confirms what it actually did.
  */
 export async function controlSourcing(taskId: string, recruiter: RecruiterContext, action: "start" | "pause" | "resume" | "stop", opts: { skipFilters?: boolean } = {}) {
-  const task = await prisma.sourcingTask.findFirst({ where: { id: taskId, organizationId: recruiter.organizationId } });
+  // Only the HR who owns the task can run it: managers can watch it but never steer another HR's browser.
+  const task = await prisma.sourcingTask.findFirst({ where: taskFilter(taskId, recruiter, true) });
   if (!task) throw new HttpError(404, "Task not found.");
   const from = task.sourcingState as RunState;
   const next: RunState = action === "start" ? "running" : action === "resume" ? "running" : action === "pause" ? "paused" : "stopped";
@@ -109,14 +118,14 @@ export async function controlSourcing(taskId: string, recruiter: RecruiterContex
   if (action === "resume" && from !== "paused") throw new HttpError(409, "Sourcing is not paused.");
   if (action === "stop" && (from === "idle" || from === "stopped" || from === "completed")) throw new HttpError(409, "Sourcing is not active.");
   await prisma.sourcingTask.update({ where: { id: task.id }, data: { sourcingState: next, lastError: null, completedAt: null } });
-  const payload = { ...(await jobPayload(task.jobId, task.organizationId, recruiter.id)), limits: task.limits, filters: toSearchFill(filtersSchema.parse(task.filters)) };
+  const payload = { ...(await jobPayload(task.jobId, recruiter, recruiter.id)), limits: task.limits, filters: toSearchFill(filtersSchema.parse(task.filters)) };
   const command = await queueCommand(task.id, `${action}_sourcing`, payload);
   await taskEvent(task.id, "control", `Sourcing: ${action}`);
   return { command: command.id, state: next };
 }
 
-export async function controlAi(taskId: string, organizationId: string, action: "start" | "pause" | "resume" | "stop") {
-  const task = await prisma.sourcingTask.findFirst({ where: { id: taskId, organizationId } });
+export async function controlAi(taskId: string, scope: Scope, action: "start" | "pause" | "resume" | "stop") {
+  const task = await prisma.sourcingTask.findFirst({ where: taskFilter(taskId, scope, true) });
   if (!task) throw new HttpError(404, "Task not found.");
   const from = task.aiState as RunState;
   const next: RunState = action === "pause" ? "paused" : action === "stop" ? "stopped" : "running";
@@ -148,7 +157,7 @@ export interface IncomingCard {
  * known (any source) are counted as duplicates. Evaluation is NOT done here: it waits in the AI queue.
  */
 export async function captureCards(taskId: string, recruiter: RecruiterContext, page: number, cards: IncomingCard[]) {
-  const task = await prisma.sourcingTask.findFirst({ where: { id: taskId, organizationId: recruiter.organizationId } });
+  const task = await prisma.sourcingTask.findFirst({ where: taskFilter(taskId, recruiter, true) });
   if (!task) throw new HttpError(404, "Task not found.");
   const limits = limitsSchema.parse(task.limits);
   let captured = 0;
@@ -238,36 +247,42 @@ export async function captureCards(taskId: string, recruiter: RecruiterContext, 
  * platform). Runs only while the task's AI state is "running", unless `force` (the recruiter pressed "Analyze selected").
  * Bounded per call, so it is safe in a serverless request; callers loop until `remaining` is 0 or the state changes.
  */
-export async function processAnalysisBatch(taskId: string, organizationId: string, opts: { limit?: number; force?: boolean } = {}) {
-  const task = await prisma.sourcingTask.findFirst({ where: { id: taskId, organizationId } });
+export async function processAnalysisBatch(taskId: string, scope: Scope, opts: { limit?: number; force?: boolean } = {}) {
+  const task = await prisma.sourcingTask.findFirst({ where: taskFilter(taskId, scope, true) });
   if (!task) throw new HttpError(404, "Task not found.");
   if (task.aiState !== "running" && !opts.force) return { processed: 0, failed: 0, remaining: await prisma.capturedCandidate.count({ where: { taskId, aiStatus: "pending" } }), state: task.aiState as RunState };
-  const job = await findJobInOrganization(task.jobId, organizationId);
+  const job = await findJobInOrganization(task.jobId, task.organizationId);
   if (!job) throw new HttpError(404, "Job not found.");
   const rubric = await ensureRubric(job, task.createdById);
   const batch = await prisma.capturedCandidate.findMany({ where: { taskId, aiStatus: "pending", attempts: { lt: 3 } }, orderBy: [{ page: "asc" }, { position: "asc" }], take: Math.min(opts.limit ?? 20, 40) });
   let processed = 0;
   let failed = 0;
-  for (const row of batch) {
-    // Re-check between candidates so Pause / Stop take effect within one candidate.
-    if (!opts.force) {
-      const fresh = await prisma.sourcingTask.findUnique({ where: { id: taskId }, select: { aiState: true } });
-      if (fresh?.aiState !== "running") break;
-    }
+  let ruleFallbacks = 0;
+  const one = async (row: (typeof batch)[number]) => {
     try {
       const parsed = (row.parsed ?? parseCard(row.rawText)) as ReturnType<typeof parseCard>;
-      await evaluateAndStore({ job, rubric, candidateId: row.candidateId!, facts: factsFromParsed(parsed, row.rawText) });
-      await prisma.capturedCandidate.update({ where: { id: row.id }, data: { aiStatus: "done", analyzedAt: new Date(), aiError: null, attempts: { increment: 1 } } });
+      // The AI judges this card against the JD and rubric (the HR's own key first); the labelled rule engine is the fallback.
+      const r = await evaluateAndStore({ job, rubric, candidateId: row.candidateId!, facts: factsFromParsed(parsed, row.rawText) });
+      if (r.aiError) ruleFallbacks += 1;
+      await prisma.capturedCandidate.update({ where: { id: row.id }, data: { aiStatus: "done", analyzedAt: new Date(), aiError: r.aiError ? `Scored by rules: ${r.aiError}`.slice(0, 300) : null, attempts: { increment: 1 } } });
       processed += 1;
     } catch (error) {
       failed += 1;
       const attempts = row.attempts + 1;
       await prisma.capturedCandidate.update({ where: { id: row.id }, data: { attempts, aiStatus: attempts >= 3 ? "failed" : "pending", aiError: (error as Error).message.slice(0, 300) } });
     }
+  };
+  for (let i = 0; i < batch.length; i += 3) {
+    // Re-check between groups so Pause / Stop take effect within a few candidates.
+    if (!opts.force) {
+      const fresh = await prisma.sourcingTask.findUnique({ where: { id: taskId }, select: { aiState: true } });
+      if (fresh?.aiState !== "running") break;
+    }
+    await Promise.all(batch.slice(i, i + 3).map(one));
   }
   const remaining = await prisma.capturedCandidate.count({ where: { taskId, aiStatus: "pending", attempts: { lt: 3 } } });
   const failedTotal = await prisma.capturedCandidate.count({ where: { taskId, aiStatus: "failed" } });
   const analyzedTotal = await prisma.capturedCandidate.count({ where: { taskId, aiStatus: "done" } });
   await prisma.sourcingTask.update({ where: { id: taskId }, data: { analyzedCount: analyzedTotal, failedCount: failedTotal, ...(remaining === 0 && task.aiState === "running" ? { aiState: "completed" } : {}) } });
-  return { processed, failed, remaining, state: (remaining === 0 && task.aiState === "running" ? "completed" : task.aiState) as RunState };
+  return { processed, failed, ruleFallbacks, remaining, state: (remaining === 0 && task.aiState === "running" ? "completed" : task.aiState) as RunState };
 }

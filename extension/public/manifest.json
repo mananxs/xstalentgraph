@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "XS-Hunt",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "XS-Hunt for Naukri Resdex: your XS-Hunt workspace drives sourcing in your own signed-in Resdex session, scores candidates with your job rubric, and stores approved profiles and resumes.",
   "minimum_chrome_version": "116",
   "action": {

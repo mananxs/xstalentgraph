@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, handleRoute } from "@/server/api/http";
+import { getEnv } from "@/server/env";
 import { verifyPassword } from "@/server/password";
 import { findRecruiterForLogin } from "@/server/repositories/recruiterRepository";
 import { SESSION_COOKIE, SESSION_DAYS, signSession } from "@/server/session";
@@ -13,6 +14,7 @@ const bodySchema = z.object({ email: z.string().trim().min(3).max(200), password
 /** POST /api/auth/login { email, password } -> sets the signed session cookie. */
 export async function POST(request: Request): Promise<Response> {
   return handleRoute(async () => {
+    if (!getEnv().ALLOW_PASSWORD_LOGIN) throw new ApiError(403, "Password sign-in is turned off. Use Continue with Google.");
     const { email, password } = bodySchema.parse(await request.json().catch(() => ({})));
     const recruiter = await findRecruiterForLogin(email);
     const valid = await verifyPassword(password, recruiter?.passwordHash);

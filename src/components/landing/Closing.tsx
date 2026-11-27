@@ -79,7 +79,7 @@ export function Faq() {
 
 export function Footer() {
   return (
-    <footer className="relative overflow-hidden bg-[var(--ink)] px-4 pb-10 pt-24 text-white sm:px-6">
+    <footer className="relative overflow-hidden bg-[#0c0c10] px-4 pb-10 pt-24 text-white sm:px-6">
       <div aria-hidden="true" className="drift-a absolute -left-20 -top-20 size-[420px] rounded-full bg-[radial-gradient(circle,#ff8a5c_0%,transparent_65%)] opacity-40 blur-2xl" />
       <div aria-hidden="true" className="drift-b absolute -right-16 top-0 size-[480px] rounded-full bg-[radial-gradient(circle,#8b5cf6_0%,transparent_65%)] opacity-40 blur-2xl" />
       <div className="relative mx-auto max-w-4xl text-center">

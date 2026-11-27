@@ -1,3 +1,4 @@
+import { setActiveJob } from "@/server/hunt/activeJob";
 import { z } from "zod";
 import { requireWriter } from "@/server/auth";
 import { ApiError, handleRoute, jsonOk } from "@/server/api/http";
@@ -13,13 +14,15 @@ export const dynamic = "force-dynamic";
 export async function GET(): Promise<Response> {
   return handleRoute(async () => {
     const recruiter = await requireRecruiter();
-    const rows = await listJobsWithMatchCounts(recruiter.organizationId);
+    const rows = await listJobsWithMatchCounts(recruiter.organizationId, recruiter);
 
     const jobs: JobSummary[] = rows.map((row) => ({
       id: row.id,
       title: row.title,
       createdAt: row.createdAt.toISOString(),
       matchCount: row.matchCount,
+      ownerId: row.ownerId,
+      ownerName: row.ownerName,
     }));
     return jsonOk({ jobs });
   });
@@ -37,8 +40,8 @@ export async function POST(request: Request): Promise<Response> {
     await requireWriter();
     const recruiter = await requireRecruiter();
     const body = createSchema.parse(await request.json().catch(() => ({})));
-    if (body.languages.length === 0 && body.locations.length === 0) {
-      throw new ApiError(400, "Add at least one programming language or one location, so GitHub can be searched.");
+    if (body.languages.length === 0 && body.locations.length === 0 && body.requiredSkills.length === 0 && body.preferredSkills.length === 0) {
+      throw new ApiError(400, "Add at least one skill, programming language or location, so there is something to search for.");
     }
     const job = await createJob({
       ...body,
@@ -46,6 +49,7 @@ export async function POST(request: Request): Promise<Response> {
       organizationId: recruiter.organizationId,
       createdById: recruiter.id,
     });
+    await setActiveJob(recruiter.id, job.id); // a freshly uploaded JD becomes the extension's active job
     return jsonOk({ job: toJobDetailDto(job) }, 201);
   });
 }

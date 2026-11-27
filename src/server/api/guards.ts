@@ -16,7 +16,7 @@ export async function requireJobAccess(rawJobId: string): Promise<{ recruiter: R
   const recruiter = await requireRecruiter();
   const jobId = uuidSchema.parse(rawJobId);
 
-  const job = await findJobInOrganization(jobId, recruiter.organizationId);
+  const job = await findJobInOrganization(jobId, recruiter.organizationId, recruiter);
   if (!job) throw new ApiError(404, "Job not found.");
 
   return { recruiter, job };

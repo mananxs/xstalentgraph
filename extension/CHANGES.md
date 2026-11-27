@@ -1,3 +1,12 @@
+# XS-Hunt extension 2.1
+
+* **Fixes "not connected":** the previous zip shipped an old build at its top level (no `alarms` permission, no page agent), so the browser never
+  kept a heartbeat. The zip root is now the built extension itself (`manifest.json` 2.1.0 with `alarms`), nothing else.
+* **Connect with a code** (Settings > Connect extension in XS-Hunt): no password in the extension, works with Google sign-in.
+* **JD hand-off:** the job uploaded / opened in XS-Hunt becomes the extension's active job on the next heartbeat.
+* **Auto-send:** candidates you view in Resdex are sent to that job (no AI used), unless you untick it in the panel.
+* Heartbeat every 5 s while a Resdex tab is open (30 s otherwise).
+
 # XS-Hunt extension 2.0
 
 Controlled from XS-Hunt: connection + Naukri session detection (heartbeat), filter apply-and-verify, paced pagination capture, independent

@@ -348,6 +348,6 @@ if (!window.__xsHuntAgent) {
     if (run?.state === "running") void runSourcing();
   })();
   // Heartbeat nudge: lets the (sleeping) service worker wake up and talk to the platform while a Resdex tab is open.
-  setInterval(() => void send({ type: "AGENT_TICK" }), 15_000);
+  setInterval(() => void send({ type: "AGENT_TICK" }), 5_000); // keeps the browser answering the platform quickly while a Resdex tab is open
   void send({ type: "AGENT_TICK" });
 }

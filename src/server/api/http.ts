@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { createLogger } from "@/server/logger";
+import { withAiScope } from "@/server/ai/scope";
 
 const log = createLogger("api");
 
@@ -26,7 +27,8 @@ export function jsonOk(data: unknown, status = 200): NextResponse {
  */
 export async function handleRoute(handler: () => Promise<NextResponse>): Promise<NextResponse> {
   try {
-    return await handler();
+    // One AI scope per request: requireRecruiter() fills it with the signed-in HR's own keys, so their quota is used before the platform's.
+    return await withAiScope(handler);
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

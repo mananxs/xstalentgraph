@@ -19,7 +19,7 @@ const body = z.object({ jobId: uuidSchema, rawText: z.string().min(200).max(60_0
 export async function POST(request: Request): Promise<Response> {
   return extensionRoute(request, async (recruiter) => {
     const input = body.parse(await request.json().catch(() => ({})));
-    const job = await findJobInOrganization(input.jobId, recruiter.organizationId);
+    const job = await findJobInOrganization(input.jobId, recruiter.organizationId, recruiter);
     if (!job) throw new ApiError(404, "Job not found.");
     const rubric = await ensureRubric(job, recruiter.id);
     const audit = await auditProfile(job, rubric, input.rawText);

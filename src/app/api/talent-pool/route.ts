@@ -1,3 +1,4 @@
+import { jobWhere as jobScope } from "@/server/access";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleRoute } from "@/server/api/http";
@@ -14,7 +15,7 @@ export async function GET(request: Request): Promise<Response> {
     const recruiter = await requireRecruiter();
     const { q, source, limit, offset } = query.parse(Object.fromEntries(new URL(request.url).searchParams));
     const where = {
-      matchScores: { some: { job: { organizationId: recruiter.organizationId } } },
+      matchScores: { some: { job: jobScope(recruiter) } },
       ...(source ? { sources: { has: source } } : {}),
       ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { headline: { contains: q, mode: "insensitive" as const } }, { location: { contains: q, mode: "insensitive" as const } }, { skills: { has: q } }] } : {}),
     };
@@ -22,7 +23,7 @@ export async function GET(request: Request): Promise<Response> {
       prisma.candidate.count({ where }),
       prisma.candidate.findMany({
         where, take: limit, skip: offset, orderBy: { updatedAt: "desc" },
-        select: { id: true, name: true, login: true, headline: true, location: true, experienceYears: true, primarySource: true, sources: true, skills: true, _count: { select: { resumes: true } }, matchScores: { where: { job: { organizationId: recruiter.organizationId } }, select: { id: true, score: true, tier: true, stage: true, job: { select: { id: true, title: true } } } } },
+        select: { id: true, name: true, login: true, headline: true, location: true, experienceYears: true, primarySource: true, sources: true, skills: true, _count: { select: { resumes: true } }, matchScores: { where: { job: jobScope(recruiter) }, select: { id: true, score: true, tier: true, stage: true, job: { select: { id: true, title: true } } } } },
       }),
     ]);
     return NextResponse.json({

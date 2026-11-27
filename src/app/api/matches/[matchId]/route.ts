@@ -1,3 +1,4 @@
+import { jobWhere as jobScope, type Viewer } from "@/server/access";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, handleRoute } from "@/server/api/http";
@@ -10,8 +11,8 @@ import { isShortlistedStage, STAGES } from "@/server/hunt/stages";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ matchId: string }> };
 
-async function loadMatch(id: string, organizationId: string) {
-  const match = await prisma.matchScore.findFirst({ where: { id, job: { organizationId } }, include: { candidate: { select: { id: true, name: true, headline: true, primarySource: true, sources: true } }, job: { select: { id: true, title: true } } } });
+async function loadMatch(id: string, viewer: Viewer) {
+  const match = await prisma.matchScore.findFirst({ where: { id, job: jobScope(viewer) }, include: { candidate: { select: { id: true, name: true, headline: true, primarySource: true, sources: true } }, job: { select: { id: true, title: true } } } });
   if (!match) throw new ApiError(404, "Candidate not found.");
   return match;
 }
@@ -20,7 +21,7 @@ async function loadMatch(id: string, organizationId: string) {
 export async function GET(_r: Request, context: Ctx): Promise<Response> {
   return handleRoute(async () => {
     const recruiter = await requireRecruiter();
-    const match = await loadMatch(uuidSchema.parse((await context.params).matchId), recruiter.organizationId);
+    const match = await loadMatch(uuidSchema.parse((await context.params).matchId), recruiter);
     const [evaluation, history, notes, interviews, reminders, events] = await Promise.all([
       match.latestEvaluationId ? prisma.candidateEvaluation.findUnique({ where: { id: match.latestEvaluationId } }) : null,
       prisma.candidateEvaluation.findMany({ where: { jobId: match.jobId, candidateId: match.candidateId }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, total: true, tier: true, rubricVersion: true, evidenceCoverage: true, engine: true, createdAt: true } }),
@@ -51,7 +52,7 @@ const action = z.discriminatedUnion("action", [
 export async function PATCH(request: Request, context: Ctx): Promise<Response> {
   return handleRoute(async () => {
     const recruiter = await requireWriter();
-    const match = await loadMatch(uuidSchema.parse((await context.params).matchId), recruiter.organizationId);
+    const match = await loadMatch(uuidSchema.parse((await context.params).matchId), recruiter);
     const input = action.parse(await request.json().catch(() => ({})));
     const base = { organizationId: recruiter.organizationId, jobId: match.jobId, candidateId: match.candidateId, matchId: match.id, actorId: recruiter.id };
 

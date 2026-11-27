@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AgentStatus } from "../../background/agent";
-import { call, useStorage } from "../lib";
+import { K, type ActiveJob } from "../../shared/types";
+import { call, useSettings, useStorage } from "../lib";
 
 const NAUKRI_TEXT: Record<string, string> = {
   signed_in: "Naukri: signed in",
@@ -14,6 +15,8 @@ const NAUKRI_TEXT: Record<string, string> = {
 /** What the extension is doing for XS-Hunt right now. Only facts: the last heartbeat result, the Naukri state it saw, the run it is executing. */
 export default function AgentStatusCard() {
   const status = useStorage<AgentStatus>("local", "agent.status");
+  const job = useStorage<ActiveJob>("local", K.activeJob);
+  const [settings, setSettings] = useSettings();
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 5000);
@@ -35,6 +38,11 @@ export default function AgentStatusCard() {
       {!connected && status?.error && <p>{status.error}</p>}
       {!connected && status?.lastOkAt && <p>Last contact {Math.round((now - status.lastOkAt) / 1000)}s ago.</p>}
       <p>{NAUKRI_TEXT[status?.naukri ?? "unknown"] ?? NAUKRI_TEXT.unknown}</p>
+      <p>{job ? <>Job: <b>{job.title}</b></> : "No job yet. Upload a JD in XS-Hunt and it appears here by itself."}</p>
+      <label className="flex items-start gap-1.5">
+        <input type="checkbox" className="mt-0.5" checked={settings.autoSend} onChange={(e) => setSettings({ autoSend: e.target.checked })} />
+        <span>Send candidates I view in Resdex to this job in XS-Hunt automatically <span className="opacity-70">(no AI is used for sending)</span></span>
+      </label>
       {run && run.state !== "idle" && (
         <p>
           Sourcing <b>{run.state}</b>: {run.pagesDone} page{run.pagesDone === 1 ? "" : "s"} read, {run.captured} candidates sent (limit {run.limits.maxPages} pages / {run.limits.maxCandidates} candidates).

@@ -101,6 +101,9 @@ async function route(msg: ContentToBg | PanelToBg, sender: chrome.runtime.Messag
         missing.push(...r.missing);
         unscored.push(...(r.unscored ?? []));
       }
+      // What the HR is looking at also goes to the job in XS-Hunt (no AI is spent by this), unless they turned auto-send off.
+      const settings = ((await chrome.storage.local.get(K.settings))[K.settings] as Partial<Settings> | undefined) ?? {};
+      if (settings.autoSend !== false) void agent.autoCapture(job.id, msg.cards.map((c) => ({ rawText: c.rawText, profileUrl: c.profileUrl }))).catch(() => {});
       return { results, missing, unscored };
     }
     case "SEARCH_STATE": {
@@ -155,6 +158,21 @@ async function route(msg: ContentToBg | PanelToBg, sender: chrome.runtime.Messag
       const data = (await res.json().catch(() => ({}))) as { apiKey?: string; user?: Config["user"]; error?: string };
       if (!res.ok || !data.apiKey) throw new BgError(data.error ?? `Login failed (${res.status})`);
       await adoptConfig({ baseUrl: base, apiKey: data.apiKey, user: data.user });
+      return data.user ?? null;
+    }
+    case "PAIR": {
+      // One-time code from XS-Hunt (Settings > Connect extension) -> this HR's own key. No password is typed here.
+      const base = msg.baseUrl.replace(/\/+$/, "");
+      let res: Response;
+      try {
+        res = await fetch(`${base}/api/extension/pair`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: msg.code }) });
+      } catch {
+        throw new BgError(`Cannot reach ${base}. Check the address, and that the site is online.`);
+      }
+      const data = (await res.json().catch(() => ({}))) as { apiKey?: string; user?: Config["user"]; error?: string };
+      if (!res.ok || !data.apiKey) throw new BgError(data.error ?? `Could not connect (${res.status})`);
+      await adoptConfig({ baseUrl: base, apiKey: data.apiKey, user: data.user });
+      void agent.tick(true).catch(() => {}); // announce this browser to the platform right away
       return data.user ?? null;
     }
     case "LOGOUT":

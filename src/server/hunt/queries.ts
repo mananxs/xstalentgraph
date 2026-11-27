@@ -1,3 +1,4 @@
+import { jobWhere as jobScope, type Viewer } from "@/server/access";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
 import { SHORTLIST_STAGES, STAGES, TIER_LABEL, type Tier } from "./stages";
@@ -40,7 +41,8 @@ export interface CandidateRow {
 }
 
 export interface CandidateQuery {
-  organizationId: string;
+  /** Who is asking (see access.ts). */
+  viewer: Viewer;
   jobId?: string;
   source?: string;
   stage?: string;
@@ -53,7 +55,7 @@ export interface CandidateQuery {
 
 export async function listCandidateRows(query: CandidateQuery): Promise<{ rows: CandidateRow[]; total: number }> {
   const where: Prisma.MatchScoreWhereInput = {
-    job: { organizationId: query.organizationId, ...(query.jobId ? { id: query.jobId } : {}) },
+    job: { ...jobScope(query.viewer), ...(query.jobId ? { id: query.jobId } : {}) },
     ...(query.stage ? { stage: query.stage } : {}),
     ...(query.tier ? { OR: [{ overrideTier: query.tier }, { overrideTier: null, tier: query.tier }] } : {}),
     candidate: {
@@ -114,8 +116,8 @@ export async function listCandidateRows(query: CandidateQuery): Promise<{ rows: 
   return { rows: mapped, total };
 }
 
-export async function dashboardMetrics(organizationId: string) {
-  const jobWhere = { job: { organizationId } };
+export async function dashboardMetrics(viewer: Viewer) {
+  const jobWhere = { job: jobScope(viewer) };
   const [totalCandidates, shortlisted, pending, strong] = await Promise.all([
     prisma.matchScore.groupBy({ by: ["candidateId"], where: jobWhere }).then((g) => g.length),
     prisma.matchScore.count({ where: { ...jobWhere, stage: { in: [...SHORTLIST_STAGES] } } }),
@@ -126,7 +128,8 @@ export async function dashboardMetrics(organizationId: string) {
 }
 
 export interface AnalyticsQuery {
-  organizationId: string;
+  /** Who is asking: an HR sees only their own jobs, admins and managers see everyone's. */
+  viewer: Viewer;
   from?: Date;
   to?: Date;
   jobId?: string;
@@ -136,7 +139,7 @@ export interface AnalyticsQuery {
 /** Real analytics straight from the pipeline tables. Nothing here is estimated: an empty database gives zeros. */
 export async function analytics(q: AnalyticsQuery) {
   const createdAt = { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) };
-  const where: Prisma.MatchScoreWhereInput = { job: { organizationId: q.organizationId, ...(q.jobId ? { id: q.jobId } : {}) }, ...(Object.keys(createdAt).length ? { createdAt } : {}), ...(q.source ? { candidate: { sources: { has: q.source } } } : {}) };
+  const where: Prisma.MatchScoreWhereInput = { job: { ...jobScope(q.viewer), ...(q.jobId ? { id: q.jobId } : {}) }, ...(Object.keys(createdAt).length ? { createdAt } : {}), ...(q.source ? { candidate: { sources: { has: q.source } } } : {}) };
   const matches = await prisma.matchScore.findMany({ where, take: 20000, select: { id: true, stage: true, tier: true, overrideTier: true, createdAt: true, stageChangedAt: true, candidate: { select: { primarySource: true } } } });
   const ids = matches.map((m) => m.id);
   const events = ids.length

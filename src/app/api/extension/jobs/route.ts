@@ -1,3 +1,4 @@
+import { setActiveJob } from "@/server/hunt/activeJob";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError } from "@/server/api/http";
@@ -13,10 +14,10 @@ export const maxDuration = 60;
 /** GET /api/extension/jobs - the organization's jobs with their rubric and the Resdex search plan. */
 export async function GET(request: Request): Promise<Response> {
   return extensionRoute(request, async (recruiter) => {
-    const rows = await listJobsWithMatchCounts(recruiter.organizationId);
+    const rows = await listJobsWithMatchCounts(recruiter.organizationId, recruiter);
     const jobs = [];
     for (const row of rows.slice(0, 100)) {
-      const job = await findJobInOrganization(row.id, recruiter.organizationId);
+      const job = await findJobInOrganization(row.id, recruiter.organizationId, recruiter);
       if (job) jobs.push(jobSummary(job, row.matchCount, (await ensureRubric(job, recruiter.id)).version));
     }
     return NextResponse.json({ jobs });
@@ -52,6 +53,7 @@ export async function POST(request: Request): Promise<Response> {
       sourceFileName: null,
       rawText: rawDescription.slice(0, 60_000),
     });
+    await setActiveJob(recruiter.id, job.id);
     return NextResponse.json({ job: jobSummary(job, 0) }, { status: 201 });
   });
 }

@@ -11,7 +11,7 @@ export const OPTIONS = (request: Request) => preflight(request);
 export async function GET(request: Request): Promise<Response> {
   const response = await handleRoute(async () => {
     const recruiter = await requireExtension(request);
-    const rows = await listJobsWithMatchCounts(recruiter.organizationId);
+    const rows = await listJobsWithMatchCounts(recruiter.organizationId, recruiter);
     return NextResponse.json({ jobs: rows.map((row) => ({ id: row.id, title: row.title, candidates: row.matchCount })) });
   });
   return withCors(request, response);

@@ -136,8 +136,8 @@ export const hunt = {
     const p = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]));
     return request<{ total: number; candidates: Array<{ id: string; name: string; headline: string | null; location: string | null; experienceYears: number | null; primarySource: string; sources: string[]; skills: string[]; hasResume: boolean; jobs: Array<{ matchId: string; jobId: string; jobTitle: string; score: number | null; tier: Tier | null; stage: string }> }> }>(`/api/talent-pool?${p}`);
   },
-  team: () => request<{ me: { id: string; role: string }; members: Array<{ id: string; email: string; name: string; role: string; createdAt: string; canSignIn: boolean; extensionKeys: number }> }>("/api/team"),
-  addMember: (body: { email: string; name: string; password: string; role: string }) => send<{ member: { id: string } }>("POST", "/api/team", body),
+  team: () => request<{ me: { id: string; role: string }; members: Array<{ id: string; email: string; name: string; role: string; createdAt: string; canSignIn: boolean; google: boolean; lastLoginAt: string | null; extensionKeys: number; jobs: number; candidates: number; extensionOnline: boolean }> }>("/api/team"),
+  addMember: (body: { email: string; name?: string; password?: string; role: string }) => send<{ member: { id: string } }>("POST", "/api/team", body),
   updateMember: (body: { memberId: string; role?: string; password?: string }) => send<{ ok: boolean }>("PATCH", "/api/team", body),
 };
 

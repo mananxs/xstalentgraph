@@ -311,12 +311,116 @@ describe("XS-Hunt: platform <-> extension workflow", { skip }, () => {
     assert.equal((await other.call("/agent/capture", { taskId, page: 1, cards: [{ position: 0, rawText: SANTHOSH }] })).status, 404);
   });
 
+  it("HR isolation: another HR of the same organization sees none of this HR's work", async () => {
+    const m = matches[0]!;
+    assert.equal((await hr2(`/api/jobs/${jobId}/candidates`)).status, 404);
+    assert.equal((await hr2(`/api/hunt/tasks/${taskId}`)).status, 404);
+    assert.equal((await hr2(`/api/matches/${m.matchId}`)).status, 404);
+    assert.equal((await hr2(`/api/matches/${m.matchId}`, { method: "PATCH", json: { action: "note", body: "x" } })).status, 404);
+    assert.equal((await hr2(`/api/candidates/${m.candidateId}/resume`)).status, 404);
+    assert.ok(!(await hr2("/api/jobs")).body.jobs.some((j: J) => j.id === jobId), "job list is private");
+    assert.equal((await hr2("/api/talent-pool")).body.total, 0);
+    assert.equal((await hr2("/api/dashboard")).body.totalCandidates, 0);
+    assert.equal((await hr2("/api/shortlists")).status, 200);
+    const other = await ext("hr2@xs.com", "correct-horse-2");
+    assert.equal((await other.call("/agent/capture", { taskId, page: 1, cards: [{ position: 0, rawText: SANTHOSH }] })).status, 404, "another HR's extension cannot write into this task");
+    assert.equal((await other.call("/agent/auto-capture", { jobId, cards: [{ position: 0, rawText: SANTHOSH }] })).status, 404);
+    assert.equal((await other.call("/analyzed?jobId=" + jobId)).status, 404);
+  });
+
+  it("a manager sees every HR's work (read-only on their browsers), and admins/owners alone edit jobs", async () => {
+    const add = await hr("/api/team", { method: "POST", json: { email: "boss@xs.com", name: "Boss", password: "boss-pass-123", role: "manager" } });
+    assert.equal(add.status, 201, JSON.stringify(add.body));
+    const boss = await web("boss@xs.com", "boss-pass-123");
+    const list = (await boss("/api/jobs")).body.jobs as J[];
+    const mine = list.find((j) => j.id === jobId);
+    assert.ok(mine, "manager sees the HR's job");
+    assert.equal(mine!.ownerName, "HR One");
+    assert.equal((await boss(`/api/jobs/${jobId}/candidates`)).status, 200);
+    assert.equal((await boss(`/api/matches/${matches[0]!.matchId}`)).status, 200);
+    assert.equal((await boss(`/api/hunt/tasks/${taskId}`)).status, 200);
+    assert.ok((await boss("/api/talent-pool")).body.total > 0);
+    assert.ok((await boss("/api/dashboard")).body.totalCandidates > 0);
+    assert.equal((await boss(`/api/hunt/tasks/${taskId}/sourcing`, { method: "POST", json: { action: "stop" } })).status, 404, "a manager cannot steer another HR's sourcing");
+    assert.equal((await boss(`/api/jobs/${jobId}`, { method: "DELETE" })).status, 403, "a manager cannot delete another HR's job");
+    const team = (await hr("/api/team")).body.members as J[];
+    const row = team.find((x) => x.email === "hr@xs.com")!;
+    assert.ok(row.jobs >= 1 && row.candidates >= 1, "the team table shows each HR's workload");
+    const byEmail = await hr("/api/team", { method: "POST", json: { email: "lead@xsassociates.com", role: "manager" } });
+    assert.equal(byEmail.status, 201, "a manager can be added by e-mail alone (signs in with Google)");
+    assert.equal((await hr("/api/team", { method: "POST", json: { email: "lead@elsewhere.com", role: "manager" } })).status, 400, "no password and not on the company domain");
+  });
+
+  it("pairing code: connects the extension to the signed-in HR once, and only that HR", async () => {
+    const made = await hr("/api/pairing", { method: "POST" });
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    assert.match(made.body.code, /^XSH-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    assert.ok(made.body.connection.startsWith("xsh1."));
+    const bad = await fetch(`${BASE}/api/extension/pair`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: "XSH-AAAA-AAAA" }) });
+    assert.equal(bad.status, 400);
+    const ok = await fetch(`${BASE}/api/extension/pair`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: made.body.code.toLowerCase() }) });
+    assert.equal(ok.status, 200);
+    const paired = (await ok.json()) as J;
+    assert.equal(paired.user.email, "hr@xs.com");
+    const again = await fetch(`${BASE}/api/extension/pair`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: made.body.code }) });
+    assert.equal(again.status, 400, "a code works once");
+    const hb = await fetch(`${BASE}/api/extension/agent/heartbeat`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${paired.apiKey}` }, body: JSON.stringify({ deviceId: "device-paired-01", version: "2.1.0", naukri: { state: "signed_in" } }) });
+    assert.equal(hb.status, 200);
+    const newer = await hr("/api/pairing", { method: "POST" });
+    const older = await hr("/api/pairing", { method: "POST" });
+    const first = await fetch(`${BASE}/api/extension/pair`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: newer.body.code }) });
+    assert.equal(first.status, 400, "creating a new code revokes the previous unused one");
+    assert.ok(older.body.code);
+  });
+
+  it("a JD uploaded in the web app reaches the extension by itself, and what the HR views in Resdex comes back", async () => {
+    const job = await hr("/api/jobs", { method: "POST", json: { title: "Platform Engineer", description: "Run our platform. Up to 25 LPA.", requiredSkills: ["Kubernetes", "Go"], preferredSkills: [], locations: ["Hyderabad"], languages: [], technologies: [], handsOn: [], remoteAllowed: false, experienceYears: 5 } });
+    assert.equal(job.status, 201, JSON.stringify(job.body));
+    const newJob = job.body.job.id as string;
+    const hb1 = await agent.call("/agent/heartbeat", { deviceId: "device-test-0001", version: "2.1.0", naukri: { state: "signed_in" } });
+    assert.equal(hb1.body.activeJob?.job?.id, newJob, "the new job is handed to the extension");
+    assert.ok(hb1.body.activeJob.at);
+    const hb2 = await agent.call("/agent/heartbeat", { deviceId: "device-test-0001", version: "2.1.0", activeJobAt: hb1.body.activeJob.at, naukri: { state: "signed_in" } });
+    assert.equal(hb2.body.activeJob, null, "it is only resent when it changed");
+    assert.equal((await hr(`/api/jobs/${newJob}/extension`, { method: "POST" })).status, 200, "Send to extension works");
+    const hb3 = await agent.call("/agent/heartbeat", { deviceId: "device-test-0001", version: "2.1.0", activeJobAt: hb1.body.activeJob.at, naukri: { state: "signed_in" } });
+    assert.equal(hb3.body.activeJob?.job?.id, newJob);
+
+    const cap = await agent.call("/agent/auto-capture", { jobId: newJob, cards: [{ position: 0, rawText: SANTHOSH }, { position: 1, rawText: POOJA }] });
+    assert.equal(cap.status, 200, JSON.stringify(cap.body));
+    assert.equal(cap.body.captured, 2);
+    const rows = (await hr(`/api/jobs/${newJob}/candidates`)).body.rows as J[];
+    assert.equal(rows.length, 2, "the candidates appear in the job in the web app");
+    const again = await agent.call("/agent/auto-capture", { jobId: newJob, cards: [{ position: 0, rawText: SANTHOSH }] });
+    assert.equal(again.body.captured, 0, "sending the same card again creates nothing");
+    assert.equal(((await hr(`/api/jobs/${newJob}/candidates`)).body.rows as J[]).length, 2);
+  });
+
+  it("AI keys: stored encrypted, never returned, per HR; Google sign-in is off until configured", async () => {
+    assert.equal((await hr("/api/ai-keys", { method: "PUT", json: { provider: "groq", key: "not a key" } })).status, 400);
+    const saved = await hr("/api/ai-keys", { method: "PUT", json: { provider: "groq", key: "gsk_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3N4" } });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(saved.body.key.last4, "3N4".length === 3 ? "m3N4" : "");
+    const listed = JSON.stringify((await hr("/api/ai-keys")).body);
+    assert.ok(!listed.includes("gsk_a1B2"), "the key itself is never returned");
+    assert.equal((await hr2("/api/ai-keys")).body.keys.length, 0, "keys are private to each HR");
+    assert.equal((await hr("/api/me")).body.hasAiKey, true);
+    assert.equal((await hr2("/api/me")).body.hasAiKey, false);
+    assert.equal((await hr("/api/ai-keys?provider=groq", { method: "DELETE" })).status, 200);
+    assert.equal((await hr("/api/ai-keys")).body.keys.length, 0);
+    const opts = (await (await fetch(`${BASE}/api/auth/options`)).json()) as J;
+    assert.equal(opts.google, false);
+    const go = await fetch(`${BASE}/api/auth/google`, { redirect: "manual" });
+    assert.equal(go.status, 307);
+    assert.match(go.headers.get("location") ?? "", /error=google_not_configured/);
+  });
+
   it("roles: a viewer can read but not change anything; admins manage the team", async () => {
     const add = await hr("/api/team", { method: "POST", json: { email: "viewer@xs.com", name: "View Er", password: "viewer-pass-1", role: "viewer" } });
     assert.equal(add.status, 201, JSON.stringify(add.body));
     assert.equal((await hr2("/api/team", { method: "POST", json: { email: "x@xs.com", name: "X", password: "xxxxxxxx" } })).status, 403, "a recruiter cannot add members");
     const viewer = await web("viewer@xs.com", "viewer-pass-1");
-    assert.equal((await viewer(`/api/jobs/${jobId}/candidates`)).status, 200);
+    assert.equal((await viewer(`/api/jobs/${jobId}/candidates`)).status, 404, "a viewer sees only their own work, like any HR");
     assert.equal((await viewer(`/api/matches/${matches[0]!.matchId}`, { method: "PATCH", json: { action: "note", body: "x" } })).status, 403);
     assert.equal((await viewer(`/api/hunt/tasks/${taskId}/sourcing`, { method: "POST", json: { action: "stop" } })).status, 403);
     const me = (await hr("/api/team")).body.members.find((m: J) => m.email === "hr@xs.com");

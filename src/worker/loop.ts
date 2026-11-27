@@ -6,6 +6,7 @@
 import { createLogger } from "@/server/logger";
 import { claimNextQueuedBatch, requeueStaleBatches } from "@/server/repositories/batchRepository";
 import { runBatch } from "@/server/pipeline/runBatch";
+import { runAsRecruiterAi } from "@/server/ai/bind";
 
 const log = createLogger("worker");
 
@@ -42,7 +43,8 @@ export async function runWorkerLoop({ shouldStop, name = "worker" }: WorkerLoopO
 
       const batch = await claimNextQueuedBatch();
       if (batch) {
-        await runBatch(batch);
+        // The batch runs on its requester's own AI keys first (platform key as the fallback).
+        await runAsRecruiterAi(batch.requestedById, () => runBatch(batch));
         continue; // look for the next batch right away
       }
     } catch (error) {

@@ -1,3 +1,4 @@
+import { jobWhere as jobScope } from "@/server/access";
 import { ArrowLeft, Download, FileText, FileWarning, Mail, MapPin, Phone, Timer } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -23,7 +24,7 @@ export default async function CandidatePage({ params, searchParams }: PageProps)
   if (!id.success) notFound();
 
   const candidate = await prisma.candidate.findFirst({
-    where: { id: id.data, matchScores: { some: { job: { organizationId: recruiter.organizationId } } } },
+    where: { id: id.data, matchScores: { some: { job: jobScope(recruiter) } } },
     select: {
       id: true,
       source: true,
@@ -44,7 +45,7 @@ export default async function CandidatePage({ params, searchParams }: PageProps)
       resumeCapturedAt: true,
       resumeData: false,
       matchScores: {
-        where: { job: { organizationId: recruiter.organizationId } },
+        where: { job: jobScope(recruiter) },
         select: { score: true, note: true, matchedSkills: true, missingSkills: true, shortlisted: true, job: { select: { id: true, title: true } } },
         orderBy: { updatedAt: "desc" },
       },

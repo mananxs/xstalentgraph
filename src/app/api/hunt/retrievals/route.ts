@@ -25,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
   return huntRoute(async () => {
     const recruiter = await requireWriter();
     const input = body.parse(await request.json().catch(() => ({})));
-    const job = await findJobInOrganization(input.jobId, recruiter.organizationId);
+    const job = await findJobInOrganization(input.jobId, recruiter.organizationId, recruiter);
     if (!job) throw new ApiError(404, "Job not found.");
     const conn = await connectionView(recruiter.id);
     if (!conn.connected) throw new ApiError(409, "The extension is not connected, so profiles cannot be retrieved.");
@@ -51,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     const skipped = input.candidateIds.filter((id) => !candidates.some((c) => c.id === id)).map((candidateId) => ({ candidateId, reason: "Not a Naukri candidate of this job." }));
     if (requests.length) {
-      await queueCommand(task.id, "retrieve_profiles", { ...(await jobPayload(job.id, recruiter.organizationId, recruiter.id)), requests, creditAck: true });
+      await queueCommand(task.id, "retrieve_profiles", { ...(await jobPayload(job.id, recruiter, recruiter.id)), requests, creditAck: true });
       await taskEvent(task.id, "retrieval", `Recruiter approved retrieving ${requests.length} profile(s)/CV(s)`);
     }
     return NextResponse.json({ queued: requests.length, unavailable: [...unavailable, ...skipped], taskId: task.id }, { status: 202 });
@@ -63,6 +63,7 @@ export async function GET(request: Request): Promise<Response> {
   return huntRoute(async () => {
     const recruiter = await requireRecruiter();
     const jobId = uuidSchema.parse(new URL(request.url).searchParams.get("jobId"));
+    if (!(await findJobInOrganization(jobId, recruiter.organizationId, recruiter))) throw new ApiError(404, "Job not found.");
     const rows = await prisma.retrievalRequest.findMany({ where: { jobId, organizationId: recruiter.organizationId }, orderBy: { createdAt: "desc" }, take: 100, select: { id: true, candidateId: true, status: true, reason: true, createdAt: true, updatedAt: true } });
     return NextResponse.json({ requests: rows });
   });

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AiKeyPrompt } from "@/components/AiKeyPrompt";
 import { Sidebar } from "@/components/Sidebar";
 
 /** The signed-in workspace: left navigation + page. The public landing page lives in the (site) group. */
@@ -13,6 +14,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </p>
         )}
         {children}
+        <AiKeyPrompt />
       </main>
     </div>
   );

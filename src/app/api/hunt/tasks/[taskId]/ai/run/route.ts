@@ -16,6 +16,6 @@ export async function POST(request: Request, context: Ctx): Promise<Response> {
   return huntRoute(async () => {
     const recruiter = await requireWriter();
     const { limit } = body.parse(await request.json().catch(() => ({})));
-    return NextResponse.json(await processAnalysisBatch(uuidSchema.parse((await context.params).taskId), recruiter.organizationId, { limit }));
+    return NextResponse.json(await processAnalysisBatch(uuidSchema.parse((await context.params).taskId), recruiter, { limit }));
   });
 }

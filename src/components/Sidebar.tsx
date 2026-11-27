@@ -4,6 +4,8 @@ import { BarChart3, Bookmark, Briefcase, Gauge, Kanban, LogOut, Plug, Settings, 
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ThemeToggle } from "./ThemeToggle";
 import { IntegrationsIcons, IntegrationsMini } from "./IntegrationsPanel";
 import { Logo } from "./Logo";
 
@@ -43,6 +45,10 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
 /** Sticky left navigation. Collapses to icons below the md breakpoint. */
 export function Sidebar() {
   const pathname = usePathname();
+  const [me, setMe] = useState<{ name: string; email: string; role: string; avatarUrl: string | null } | null>(null);
+  useEffect(() => {
+    fetch("/api/me").then((r) => (r.ok ? r.json() : null)).then(setMe).catch(() => {});
+  }, []);
 
   return (
     <aside className="sticky top-0 flex h-screen w-14 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 md:w-56">
@@ -78,6 +84,15 @@ export function Sidebar() {
       <div className="border-t border-zinc-200 pt-3">
         <IntegrationsMini />
         <IntegrationsIcons />
+        <div className="mx-2 mb-2 flex flex-col items-center gap-2 md:flex-row">
+          {me && (
+            <div className="hidden min-w-0 flex-1 items-center gap-2 rounded-lg bg-white px-2 py-1.5 ring-1 ring-zinc-200 md:flex" title={me.email}>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent">{me.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+              <span className="min-w-0"><span className="block truncate text-xs font-medium text-zinc-950">{me.name}</span><span className="block truncate text-[11px] capitalize text-zinc-500">{me.role}</span></span>
+            </div>
+          )}
+          <ThemeToggle compact />
+        </div>
         <button
           type="button"
           title="Sign out"
@@ -85,7 +100,7 @@ export function Sidebar() {
             await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
             window.location.assign("/login");
           }}
-          className="mx-2 mb-3 flex h-9 w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-2.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+          className="mx-2 mb-2 flex h-9 w-[calc(100%-1rem)] items-center gap-2.5 rounded-lg px-2.5 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
         >
           <LogOut className="size-4 shrink-0" aria-hidden="true" />
           <span className="hidden md:block">Sign out</span>

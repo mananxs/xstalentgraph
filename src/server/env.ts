@@ -63,6 +63,18 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  /** Google sign-in (Cloud Console > OAuth client). Without both, the Google button is hidden and e-mail + password login is used. */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  /** Only addresses on this domain can sign in with Google. */
+  ALLOWED_EMAIL_DOMAIN: z.string().default("xsassociates.com"),
+  /** Comma separated e-mails that become admin / manager the first time they sign in. */
+  ADMIN_EMAILS: z.string().optional(),
+  MANAGER_EMAILS: z.string().optional(),
+  /** Public URL of this site (needed only if the request URL is not the public one). */
+  APP_URL: z.string().url().optional(),
+  /** Keep e-mail + password login next to Google (default true). Set false to allow Google only. */
+  ALLOW_PASSWORD_LOGIN: z.enum(["true", "false"]).default("true").transform((v) => v === "true"),
   DEV_RECRUITER_EMAIL: z.string().email().default("recruiter@talentgraph.dev"),
   EVAL_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(2),
   /** Run the background worker inside the web server too (default true), so runs never sit in "Queued". */

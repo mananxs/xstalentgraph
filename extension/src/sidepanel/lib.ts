@@ -70,7 +70,7 @@ export function useSettings(): [Settings, (patch: Partial<Settings>) => void] {
       void chrome.storage.local.set({ [K.settings]: { ...settings, ...patch } });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings.analyzedOnly, settings.autoSync, settings.scoring],
+    [settings.analyzedOnly, settings.autoSync, settings.scoring, settings.autoSend],
   );
   return [settings, update];
 }

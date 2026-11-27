@@ -15,6 +15,6 @@ export async function GET(request: Request): Promise<Response> {
   return handleRoute(async () => {
     const recruiter = await requireRecruiter();
     const q = query.parse(Object.fromEntries(new URL(request.url).searchParams));
-    return NextResponse.json(await analytics({ organizationId: recruiter.organizationId, jobId: q.jobId, source: q.source, from: q.from ? new Date(`${q.from}T00:00:00Z`) : undefined, to: q.to ? new Date(`${q.to}T23:59:59Z`) : undefined }));
+    return NextResponse.json(await analytics({ viewer: recruiter, jobId: q.jobId, source: q.source, from: q.from ? new Date(`${q.from}T00:00:00Z`) : undefined, to: q.to ? new Date(`${q.to}T23:59:59Z`) : undefined }));
   });
 }

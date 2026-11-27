@@ -8,13 +8,17 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "sw
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "XS-Hunt: source, rank and shortlist from LinkedIn, Naukri and GitHub",
-  description: "One workspace that turns a job description into a ranked shortlist across LinkedIn, Naukri, Cutshort and GitHub, with every resume stored in one place.",
+  title: "XS-Hunt: AI recruiting agents that source, rank and shortlist",
+  description: "Describe the role in plain English. XS-Hunt agents build the rubric, find matching profiles, score each one and rank them. You approve every step.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Applies the saved theme before first paint, so there is no flash of the wrong colours. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem("xs-theme");if(t==="dark"||t==="warm"||t==="light")document.documentElement.dataset.theme=t}catch(e){}` }} />
+      </head>
       <body className="font-sans antialiased">
         <MotionProvider>{children}</MotionProvider>
       </body>

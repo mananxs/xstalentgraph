@@ -2,6 +2,7 @@ import { ApiError } from "@/server/api/http";
 import { getEnv } from "@/server/env";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, verifySession } from "@/server/session";
+import { bindRecruiterAi } from "@/server/ai/bind";
 import { ensureOpenRecruiter, findRecruiterByEmail, findRecruiterById, type RecruiterContext } from "@/server/repositories/recruiterRepository";
 
 /**
@@ -9,6 +10,12 @@ import { ensureOpenRecruiter, findRecruiterByEmail, findRecruiterById, type Recr
  * Every API route calls this first, then checks the job belongs to the recruiter's organization.
  */
 export async function requireRecruiter(): Promise<RecruiterContext> {
+  const recruiter = await resolveRecruiter();
+  await bindRecruiterAi(recruiter.id);
+  return recruiter;
+}
+
+async function resolveRecruiter(): Promise<RecruiterContext> {
   const env = getEnv();
 
   if (env.OPEN_ACCESS) {

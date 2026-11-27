@@ -25,7 +25,7 @@ function labelOf(state: Record<string, unknown>): string {
 export async function POST(request: Request): Promise<Response> {
   return extensionRoute(request, async (recruiter) => {
     const input = body.parse(await request.json().catch(() => ({})));
-    const job = await findJobInOrganization(input.jobId, recruiter.organizationId);
+    const job = await findJobInOrganization(input.jobId, recruiter.organizationId, recruiter);
     if (!job) throw new ApiError(404, "Job not found.");
     const session = await prisma.searchSession.upsert({
       where: { jobId_recruiterId_signature: { jobId: job.id, recruiterId: recruiter.id, signature: input.signature } },

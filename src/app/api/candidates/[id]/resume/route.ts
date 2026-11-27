@@ -1,3 +1,4 @@
+import { jobWhere as jobScope } from "@/server/access";
 import { NextResponse } from "next/server";
 import { ApiError, handleRoute } from "@/server/api/http";
 import { uuidSchema } from "@/server/api/guards";
@@ -22,7 +23,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
     const id = uuidSchema.parse((await context.params).id);
     const url = new URL(request.url);
     const candidate = await prisma.candidate.findFirst({
-      where: { id, matchScores: { some: { job: { organizationId: recruiter.organizationId } } } },
+      where: { id, matchScores: { some: { job: jobScope(recruiter) } } },
       select: { resumeData: true, resumeFileName: true, resumeFileType: true, resumeText: true },
     });
     if (!candidate) throw new ApiError(404, "Candidate not found.");

@@ -4,8 +4,10 @@
 > extension), scores candidates on a seven-dimension rubric, keeps approved profiles and original resumes, and runs an eleven-stage ATS
 > pipeline. **Architecture, protocol, setup and limits: [docs/XS-HUNT.md](docs/XS-HUNT.md).** The extension source is in `extension/`.
 >
-> Quick start: `npm install`, `.env` from `.env.example`, `npx prisma migrate deploy`, `npm run user:create -- you@co.com "Name" "password"`,
-> `npm run dev`; then `cd extension && npm install && npm run build` and load `extension/dist` in Chrome.
+> Quick start: `npm install`, `.env` from `.env.example` (add the Google client id/secret for company sign-in), `npx prisma migrate deploy`,
+> `npm run dev`; then `cd extension && npm install && npm run build`, load **`extension/dist`** in Chrome and connect it from Settings > Connect extension.
+> New in this version: Google sign-in for `@xsassociates.com`, private data per HR with manager / admin visibility, per-HR Groq + Gemini keys
+> (used before the platform key), automatic JD hand-off to the extension, and a dark / light / warm theme switch.
 
 AI-assisted developer sourcing. A recruiter opens a job, the app searches GitHub for matching developers
 using **public profile metadata only** (bio, location, account age, languages, repository topics),

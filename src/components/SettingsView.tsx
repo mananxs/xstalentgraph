@@ -1,9 +1,11 @@
 "use client";
 
-import { Bot, Cpu, Gauge, PauseCircle, Puzzle } from "lucide-react";
+import { Bot, Cpu, Gauge, KeyRound, PauseCircle, Puzzle } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, toMessage } from "@/lib/api";
 import type { SystemStatusDto } from "@/lib/types";
+import { AiKeysPanel } from "./AiKeysPanel";
+import { ConnectExtension } from "./ConnectExtension";
 import { ErrorBanner } from "./ErrorBanner";
 
 /** Read-only view of how the platform is configured (no secrets are shown). */
@@ -22,9 +24,16 @@ export function SettingsView() {
     <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <header>
         <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="mt-1 text-sm text-zinc-600">How scoring and sourcing are set up. Change these in <code className="text-zinc-700">.env</code> and restart.</p>
+        <p className="mt-1 text-sm text-zinc-600">Your AI keys and extension connection, plus how the platform itself is set up.</p>
       </header>
       {error && <ErrorBanner message={error} />}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card icon={<KeyRound className="size-5" aria-hidden="true" />} title="Your AI keys"><AiKeysPanel /></Card>
+        <section id="connect" className="card-surface scroll-mt-20 rounded-2xl border border-zinc-200 p-5">
+          <h2 className="mb-3 flex items-center gap-2 font-medium text-zinc-950"><span className="text-accent"><Puzzle className="size-5" aria-hidden="true" /></span>Connect extension</h2>
+          <ConnectExtension />
+        </section>
+      </div>
       {status && (
         <div className="grid gap-4 md:grid-cols-2">
           <Card icon={<Bot className="size-5" aria-hidden="true" />} title="AI engine">
@@ -50,11 +59,11 @@ export function SettingsView() {
           <Card icon={<Cpu className="size-5" aria-hidden="true" />} title="Background worker">
             <Row label="Embedded in the web server" value={status.worker.embedded ? "Yes" : "No (run npm run worker)"} />
           </Card>
-          <Card icon={<Puzzle className="size-5" aria-hidden="true" />} title="Naukri extension (XS-Hunt)">
+          <Card icon={<Puzzle className="size-5" aria-hidden="true" />} title="Extension key (advanced)">
             <ExtensionKey />
           </Card>
           <Card icon={<PauseCircle className="size-5" aria-hidden="true" />} title="Account">
-            <p className="text-sm text-zinc-600">Team members, sign-in and per-user settings arrive together with real sign-in (Auth.js).</p>
+            <p className="text-sm text-zinc-600">Signed in with your company Google account. Managers and admins can see every HR&apos;s work; you see your own. Manage members under Team &amp; Permissions.</p>
           </Card>
         </div>
       )}

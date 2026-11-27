@@ -58,16 +58,23 @@ model Organization {
 }
 
 model Recruiter {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String   @db.Uuid
-  email          String   @unique
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  email          String    @unique
   name           String
   /// scrypt hash ("scrypt$<salt hex>$<hash hex>") used by the email + password login. null = cannot sign in.
   passwordHash   String?
-  /// admin | recruiter | viewer. Admins manage the team; viewers cannot change data.
-  role           String   @default("recruiter")
-  createdAt      DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  /// admin | manager | recruiter | viewer. Admins manage the team; managers see every HR's work; recruiters see only their own; viewers are read-only.
+  role           String    @default("recruiter")
+  /// Set when the recruiter signs in with Google (@xsassociates.com). null = never signed in with Google.
+  googleSub      String?   @unique
+  avatarUrl      String?
+  lastLoginAt    DateTime? @db.Timestamptz(3)
+  /// The job this HR last sent to the extension. The extension adopts it automatically on its next heartbeat.
+  activeJobId    String?   @db.Uuid
+  activeJobAt    DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
 
   organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   oauthTokens      OAuthToken[]
@@ -78,6 +85,8 @@ model Recruiter {
   searchSessions   SearchSession[]
   cardScores       CardScore[]
   extensionConns   ExtensionConnection[]
+  aiCredentials    AiCredential[]
+  pairingCodes     PairingCode[]
 
   @@index([organizationId])
   @@index([createdAt])
@@ -730,4 +739,44 @@ model RetrievalRequest {
   @@index([organizationId, status])
   @@index([candidateId])
   @@map("retrieval_requests")
+}
+
+/// A recruiter's OWN AI key (one per provider: groq | gemini). Used first; the platform's key is the fallback.
+/// encryptedKey format: "v1:<iv>:<authTag>:<ciphertext>" (AES-256-GCM). The plain key is never returned by any API.
+model AiCredential {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruiterId  String    @db.Uuid
+  /// groq | gemini
+  provider     String
+  encryptedKey String    @db.Text
+  /// Last 4 characters, so the recruiter can recognise the key.
+  last4        String
+  /// active | cooling (rate limit / quota, retried after coolingUntil) | invalid (rejected by the provider, until the key is replaced)
+  status       String    @default("active")
+  coolingUntil DateTime? @db.Timestamptz(3)
+  lastError    String?   @db.Text
+  lastUsedAt   DateTime? @db.Timestamptz(3)
+  useCount     Int       @default(0)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+
+  recruiter Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([recruiterId, provider])
+  @@map("ai_credentials")
+}
+
+/// One-time code that connects the extension to a recruiter's account (no password typed into the extension). Only its hash is stored.
+model PairingCode {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruiterId String    @db.Uuid
+  codeHash    String    @unique
+  expiresAt   DateTime  @db.Timestamptz(3)
+  usedAt      DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  recruiter Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@index([recruiterId, createdAt])
+  @@map("pairing_codes")
 }

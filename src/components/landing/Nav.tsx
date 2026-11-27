@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { APP_HREF } from "./data";
 import { Magnetic, scrollToId } from "./kinetic";
+import { ThemeToggle } from "../ThemeToggle";
 
 const LINKS = [["journey", "Product"], ["flow", "How it works"], ["hire", "Try it"], ["faq", "FAQ"]] as const;
 
@@ -30,6 +31,7 @@ export function Nav() {
           ))}
         </ul>
         <div className="flex items-center gap-2">
+          <ThemeToggle className="hidden sm:inline-flex" />
           <Link href={APP_HREF} className="hidden rounded-full px-3 py-1.5 text-sm font-medium text-[var(--ink-2)] hover:text-[var(--ink)] sm:inline">Sign in</Link>
           <Magnetic strength={0.25}>
             <Link href={APP_HREF} className="inline-flex h-9 items-center rounded-full bg-[var(--ink)] px-4 text-sm font-semibold text-white transition-transform hover:scale-[1.04]">Start free</Link>
@@ -44,6 +46,7 @@ export function Nav() {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="glass mx-4 mt-2 rounded-3xl p-3 md:hidden">
             {LINKS.map(([id, label]) => <button key={id} type="button" onClick={() => go(id)} className="block w-full rounded-2xl px-4 py-3 text-left text-base font-medium hover:bg-black/5">{label}</button>)}
             <Link href={APP_HREF} className="block rounded-2xl px-4 py-3 text-base font-medium hover:bg-black/5">Sign in</Link>
+            <div className="px-3 py-2"><ThemeToggle /></div>
           </motion.div>
         )}
       </AnimatePresence>

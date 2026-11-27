@@ -1,8 +1,11 @@
-import { ThinkingLevel, type GoogleGenAI } from "@google/genai";
+import { createHash } from "node:crypto";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import type { Logger } from "pino";
 import { createLogger } from "@/server/logger";
 import { getGeminiClient } from "./geminiClient";
 import { getErrorStatus, isDailyQuotaError, isRetryableError, withRetry, type RetryOptions } from "./retry";
+import { currentAiScope, type UserKey } from "./scope";
+import { recordKeyOutcome, type KeyOutcome } from "./userKeys";
 
 /**
  * One fault-tolerant way to call an LLM, shared by GitHub scoring, JD extraction, resume analysis and masking.
@@ -409,10 +412,10 @@ export function buildModelChain(main: string, fallbacks: string[]): string[] {
 let sharedClient: LlmClient | undefined;
 
 /**
- * The app-wide client, built from the environment. Never throws: with no API key it is simply "not configured"
- * and every feature falls back to its offline scorer.
+ * The platform's own client, built from the environment (the keys the developer put in .env). Never throws: with no API key it is
+ * simply "not configured". It is the LAST resort of {@link getLlmClient}: a recruiter's own keys are always tried first.
  */
-export function getLlmClient(): LlmClient {
+export function getPlatformLlmClient(): LlmClient {
   if (sharedClient) return sharedClient;
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const main = normaliseModelName(process.env.LLM_MODEL ?? "") || DEFAULT_LLM_MODEL;
@@ -438,3 +441,103 @@ export function getLlmClient(): LlmClient {
 /** Defaults that match the CandidateMatch app (known to work on the free tier). */
 export const DEFAULT_LLM_MODEL = "gemini-flash-latest";
 export const DEFAULT_LLM_FALLBACKS = "gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-flash-lite-latest,gemma-4-31b-it";
+
+
+/* ───────────────────────── per-recruiter keys first, platform key as the fallback ───────────────────────── */
+
+/** Turns a provider error into what should happen to the key that caused it; null = a transient problem, leave the key alone. */
+export function classifyKeyError(error: unknown): KeyOutcome | null {
+  const message = describeAiError(error);
+  if (isAuthError(error)) return { ok: false, kind: "invalid", message };
+  if (getErrorStatus(error) === 429) return { ok: false, kind: isDailyQuotaError(error) ? "daily" : "rate", message };
+  return null;
+}
+
+const userClients = new Map<string, LlmClient>();
+function clientFor(k: UserKey): LlmClient {
+  const id = `${k.provider}:${createHash("sha256").update(k.key).digest("hex").slice(0, 24)}`;
+  let client = userClients.get(id);
+  if (!client) {
+    const main = normaliseModelName(process.env.LLM_MODEL ?? "") || DEFAULT_LLM_MODEL;
+    const fallbacks = (process.env.LLM_FALLBACK_MODELS ?? DEFAULT_LLM_FALLBACKS).split(",").map((n) => n.trim()).filter(Boolean);
+    const groqModels = (process.env.GROQ_MODELS ?? "").split(",").map((n) => n.trim()).filter(Boolean);
+    client = new LlmClient(
+      k.provider === "gemini"
+        ? { models: buildModelChain(main, fallbacks), api: new GoogleGenAI({ apiKey: k.key }).models }
+        : { models: [], api: null, groqApiKey: k.key, groqModels, groqFirst: true },
+    );
+    if (userClients.size > 200) userClients.clear();
+    userClients.set(id, client);
+  }
+  return client;
+}
+
+/** Throttled "key was used" bookkeeping: at most one write per key every 30 s. */
+const pendingUse = new Map<string, { n: number; at: number }>();
+function noteUse(keyId: string, recruiterId: string): void {
+  const cur = pendingUse.get(keyId) ?? { n: 0, at: 0 };
+  cur.n += 1;
+  if (Date.now() - cur.at > 30_000) {
+    cur.at = Date.now();
+    cur.n = 0;
+    void recordKeyOutcome(keyId, recruiterId, { ok: true });
+  }
+  pendingUse.set(keyId, cur);
+}
+
+/**
+ * What every feature calls. For the signed-in recruiter it tries THEIR keys first (Groq, then Gemini; order follows LLM_PROVIDER_ORDER),
+ * marks a key invalid / cooling when the provider rejects it or says "quota", and only when no own key is usable does it use the
+ * platform's keys from .env. Outside a recruiter scope (no login, unit tests) it is just the platform client.
+ */
+class TieredLlm extends LlmClient {
+  constructor() {
+    super({ models: [], api: null });
+  }
+
+  private usable(request?: LlmRequest): UserKey[] {
+    return (currentAiScope()?.keys ?? []).filter((k) => !(request?.pdf && k.provider === "groq"));
+  }
+
+  override get configured(): boolean {
+    return (currentAiScope()?.keys.length ?? 0) > 0 || getPlatformLlmClient().configured;
+  }
+
+  override isPaused(): boolean {
+    const keys = this.usable();
+    const platform = getPlatformLlmClient();
+    if (keys.length === 0) return platform.isPaused();
+    return keys.every((k) => clientFor(k).isPaused()) && (!platform.configured || platform.isPaused());
+  }
+
+  override async generate(request: LlmRequest): Promise<LlmResult> {
+    const scope = currentAiScope();
+    let lastError: unknown = null;
+    for (const k of this.usable(request)) {
+      const client = clientFor(k);
+      if (client.isPaused()) continue;
+      try {
+        const result = await client.generate(request);
+        if (scope?.recruiterId) noteUse(k.id, scope.recruiterId);
+        return result;
+      } catch (error) {
+        lastError ??= error;
+        const outcome = classifyKeyError(error);
+        if (outcome && scope?.recruiterId) {
+          await recordKeyOutcome(k.id, scope.recruiterId, outcome);
+          scope.keys = scope.keys.filter((x) => x.id !== k.id); // stop trying it for the rest of this request
+        }
+      }
+    }
+    const platform = getPlatformLlmClient();
+    if (platform.configured) return platform.generate(request);
+    throw lastError ?? new Error("No AI provider configured (add your Groq or Gemini key in Settings, or set GEMINI_API_KEY / GROQ_API_KEY).");
+  }
+}
+
+let tiered: LlmClient | undefined;
+
+/** The client every feature uses: the recruiter's own keys first, the platform key as the fallback. See {@link TieredLlm}. */
+export function getLlmClient(): LlmClient {
+  return (tiered ??= new TieredLlm());
+}

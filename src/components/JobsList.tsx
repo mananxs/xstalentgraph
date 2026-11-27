@@ -17,6 +17,7 @@ export function JobsList() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const router = useRouter();
+  const manyOwners = new Set(jobs.map((j) => j.ownerId)).size > 1; // admins and managers see every HR's jobs: label whose is whose
 
   async function remove(id: string, title: string) {
     if (!window.confirm(`Delete "${title}" with all its candidates and resumes?`)) return;
@@ -80,6 +81,7 @@ export function JobsList() {
               </div>
               <span className="text-sm text-zinc-600">
                 {job.matchCount} scored {job.matchCount === 1 ? "candidate" : "candidates"} · created {new Date(job.createdAt).toLocaleDateString()}
+                {manyOwners && job.ownerName && <> · by <b className="font-medium text-zinc-800">{job.ownerName}</b></>}
               </span>
               <div className="mt-auto flex flex-wrap gap-2 pt-3">
                 <Link href={`/jobs/${job.id}`} className="flex items-center gap-1.5 rounded-lg bg-accent/10 px-3 py-1.5 text-sm text-accent hover:bg-accent/15">

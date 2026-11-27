@@ -183,6 +183,7 @@ export default function LiveRankingTab({ tabId, onResdex, jobId, onAudit }: Prop
                       {r.worthReasons?.[0] && <span className="truncate text-[10px] text-slate-500">{r.worthReasons.slice(0, 2).join(" · ")}</span>}
                     </div>
                     <p className="mt-1 line-clamp-2 text-[12px] text-slate-600">{r.oneLineVerdict}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-400">{r.scoredBy === "ai" ? "Scored by AI against the JD and rubric" : "Quick score (rules): no AI was available"}</p>
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {r.matchedSkills.slice(0, 4).map((s) => (
                         <Pill key={s} tone="green">

@@ -1,5 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
+import { canSeeAll, type Viewer } from "@/server/access";
+
+/** Resumes are found inside the caller's scope: a bare organization id (trusted internal use) or a viewer (HRs see only resumes of their own jobs). */
+type Scope = string | Viewer;
+const scoped = (scope: Scope) => (typeof scope === "string" ? { organizationId: scope } : canSeeAll(scope) ? { organizationId: scope.organizationId } : { organizationId: scope.organizationId, job: { createdById: scope.id } });
 import type { ResumeDto, ResumeSkillDto } from "@/lib/types";
 
 const resumeSelect = {
@@ -79,28 +84,28 @@ export async function createResume(data: Prisma.ResumeCandidateUncheckedCreateIn
   return toResumeDto(await prisma.resumeCandidate.create({ data, select: resumeSelect }));
 }
 
-export async function findResume(id: string, organizationId: string) {
+export async function findResume(id: string, scope: Scope) {
   return prisma.resumeCandidate.findFirst({
-    where: { id, organizationId },
+    where: { id, ...scoped(scope) },
     select: { ...resumeSelect, resumeText: true, maskedText: true, fileData: true },
   });
 }
 
-export async function updateResume(id: string, organizationId: string, data: Prisma.ResumeCandidateUpdateManyMutationInput): Promise<ResumeDto | null> {
-  const result = await prisma.resumeCandidate.updateMany({ where: { id, organizationId }, data });
+export async function updateResume(id: string, scope: Scope, data: Prisma.ResumeCandidateUpdateManyMutationInput): Promise<ResumeDto | null> {
+  const result = await prisma.resumeCandidate.updateMany({ where: { id, ...scoped(scope) }, data });
   if (result.count === 0) return null;
-  const row = await prisma.resumeCandidate.findFirst({ where: { id, organizationId }, select: resumeSelect });
+  const row = await prisma.resumeCandidate.findFirst({ where: { id, ...scoped(scope) }, select: resumeSelect });
   return row ? toResumeDto(row) : null;
 }
 
-export async function deleteResume(id: string, organizationId: string): Promise<boolean> {
-  const result = await prisma.resumeCandidate.deleteMany({ where: { id, organizationId } });
+export async function deleteResume(id: string, scope: Scope): Promise<boolean> {
+  const result = await prisma.resumeCandidate.deleteMany({ where: { id, ...scoped(scope) } });
   return result.count > 0;
 }
 
-export async function listShortlistedResumes(organizationId: string) {
+export async function listShortlistedResumes(scope: Scope) {
   const rows = await prisma.resumeCandidate.findMany({
-    where: { organizationId, shortlisted: true },
+    where: { ...scoped(scope), shortlisted: true },
     select: { ...resumeSelect, job: { select: { title: true } } },
     orderBy: [{ score: "desc" }],
     take: 500,

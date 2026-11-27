@@ -1,3 +1,4 @@
+import { jobWhere as jobScope } from "@/server/access";
 import { ApiError } from "@/server/api/http";
 import { NAUKRI_EXT_MODEL } from "@/server/ai/heuristic";
 import { prisma } from "@/server/db";
@@ -31,14 +32,14 @@ export interface IntakeResult {
 
 async function resolveJob(recruiter: RecruiterContext, job: ShortlistPayload["job"]) {
   if (job.id) {
-    const found = await prisma.jobDescription.findFirst({ where: { id: job.id, organizationId: recruiter.organizationId }, select: { id: true, title: true } });
+    const found = await prisma.jobDescription.findFirst({ where: { id: job.id, ...jobScope(recruiter) }, select: { id: true, title: true } });
     if (!found) throw new ApiError(404, "That job does not exist in the platform. Pick a job from the list or send its title.");
     return found;
   }
   const title = job.title?.trim();
   if (!title) throw new ApiError(400, "Send job.id or job.title so the candidate is filed under a requirement.");
   const existing = await prisma.jobDescription.findFirst({
-    where: { organizationId: recruiter.organizationId, title: { equals: title, mode: "insensitive" } },
+    where: { ...jobScope(recruiter), title: { equals: title, mode: "insensitive" } },
     select: { id: true, title: true },
     orderBy: { createdAt: "desc" },
   });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { extensionRoute } from "@/server/extension/route";
-import { ACK_STALE_MS, processAnalysisBatch } from "@/server/hunt/tasks";
+import { ACK_STALE_MS, jobPayload, processAnalysisBatch } from "@/server/hunt/tasks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -10,6 +10,8 @@ export const maxDuration = 60;
 const body = z.object({
   deviceId: z.string().min(8).max(80),
   version: z.string().max(30).optional(),
+  /** The `at` of the active job this extension already adopted (so the platform only resends it when it changed). */
+  activeJobAt: z.string().max(40).optional(),
   naukri: z.object({ state: z.enum(["unknown", "signed_in", "signed_out", "captcha", "expired", "no_tab"]), tabOpen: z.boolean().optional() }).default({ state: "unknown" }),
 });
 
@@ -44,9 +46,16 @@ export async function POST(request: Request): Promise<Response> {
     const running = tasks.find((t) => t.aiState === "running");
     let ai: { remaining: number; processed: number } | null = null;
     if (running) {
-      const r = await processAnalysisBatch(running.id, recruiter.organizationId, { limit: 8 }).catch(() => null);
+      const r = await processAnalysisBatch(running.id, recruiter, { limit: 8 }).catch(() => null);
       if (r) ai = { remaining: r.remaining, processed: r.processed };
     }
-    return NextResponse.json({ connectionId: connection.id, serverTime: now.toISOString(), commands, tasks: tasks.map((t) => ({ id: t.id, jobId: t.jobId, sourcingState: t.sourcingState, aiState: t.aiState, limits: t.limits })), ai });
+    // The job the HR sent to the extension (uploaded a JD, opened it, pressed "Send to extension"): adopt it automatically.
+    const me = await prisma.recruiter.findUnique({ where: { id: recruiter.id }, select: { activeJobId: true, activeJobAt: true } });
+    let activeJob: Awaited<ReturnType<typeof jobPayload>> & { at: string } | null = null;
+    if (me?.activeJobId && me.activeJobAt && (!input.activeJobAt || new Date(input.activeJobAt).getTime() < me.activeJobAt.getTime())) {
+      const payload = await jobPayload(me.activeJobId, recruiter, recruiter.id).catch(() => null);
+      if (payload) activeJob = { ...payload, at: me.activeJobAt.toISOString() };
+    }
+    return NextResponse.json({ connectionId: connection.id, serverTime: now.toISOString(), activeJob, commands, tasks: tasks.map((t) => ({ id: t.id, jobId: t.jobId, sourcingState: t.sourcingState, aiState: t.aiState, limits: t.limits })), ai });
   });
 }

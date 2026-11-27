@@ -7,7 +7,7 @@ import { findResume } from "@/server/repositories/resumeRepository";
 export async function requireResumeAccess(rawId: string) {
   const recruiter = await requireRecruiter();
   const id = uuidSchema.parse(rawId);
-  const resume = await findResume(id, recruiter.organizationId);
+  const resume = await findResume(id, recruiter);
   if (!resume) throw new ApiError(404, "Resume not found.");
   return { recruiter, resume };
 }

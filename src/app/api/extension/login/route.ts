@@ -21,6 +21,7 @@ export async function POST(request: Request): Promise<Response> {
       // Testing mode: no accounts. Everyone who can reach the site acts as the shared recruiter.
       user = await ensureOpenRecruiter(env.EXTENSION_RECRUITER_EMAIL ?? env.DEV_RECRUITER_EMAIL);
     } else {
+      if (!env.ALLOW_PASSWORD_LOGIN) throw new ApiError(403, "Password sign-in is turned off. In XS-Hunt, open Settings > Connect extension and paste the code here.");
       const found = await findRecruiterForLogin(email);
       if (!(await verifyPassword(password, found?.passwordHash)) || !found) {
         await new Promise((resolve) => setTimeout(resolve, 600));

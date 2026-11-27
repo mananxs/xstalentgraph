@@ -1,9 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
+import { canSeeAll, type Viewer } from "@/server/access";
 
 const jobSelect = {
   id: true,
   organizationId: true,
+  createdById: true,
   title: true,
   description: true,
   requiredSkills: true,
@@ -32,9 +34,11 @@ export type JobDetails = Prisma.JobDescriptionGetPayload<{ select: typeof jobSel
 export async function findJobInOrganization(
   jobId: string,
   organizationId: string,
+  viewer?: Pick<Viewer, "id" | "role">,
 ): Promise<JobDetails | null> {
   return prisma.jobDescription.findFirst({
-    where: { id: jobId, organizationId },
+    // With a viewer, an HR only finds jobs they created; admins and managers find every job in the organization.
+    where: { id: jobId, organizationId, ...(viewer && !canSeeAll(viewer) ? { createdById: viewer.id } : {}) },
     select: jobSelect,
   });
 }
@@ -45,19 +49,24 @@ export interface JobListItem {
   title: string;
   createdAt: Date;
   matchCount: number;
+  ownerId: string;
+  ownerName: string;
 }
 
 /**
  * Lists an organization's jobs with the number of completed matches, in ONE query
  * (a LEFT JOIN + GROUP BY instead of counting per job).
  */
-export async function listJobsWithMatchCounts(organizationId: string): Promise<JobListItem[]> {
+export async function listJobsWithMatchCounts(organizationId: string, viewer?: Pick<Viewer, "id" | "role">): Promise<JobListItem[]> {
+  const only = viewer && !canSeeAll(viewer) ? viewer.id : null;
   return prisma.$queryRaw<JobListItem[]>`
-    SELECT j."id", j."title", j."createdAt", COUNT(m."id")::int AS "matchCount"
+    SELECT j."id", j."title", j."createdAt", COUNT(m."id")::int AS "matchCount", j."createdById" AS "ownerId", r."name" AS "ownerName"
     FROM job_descriptions j
+    JOIN recruiters r ON r."id" = j."createdById"
     LEFT JOIN match_scores m ON m."jobId" = j."id" AND m."status" = 'completed'
     WHERE j."organizationId" = ${organizationId}::uuid
-    GROUP BY j."id"
+      AND (${only}::uuid IS NULL OR j."createdById" = ${only}::uuid)
+    GROUP BY j."id", r."id"
     ORDER BY j."createdAt" DESC
   `;
 }
@@ -102,12 +111,13 @@ export async function updateJob(
   jobId: string,
   organizationId: string,
   data: Partial<Omit<NewJobInput, "organizationId" | "createdById">>,
+  viewer?: Pick<Viewer, "id" | "role">,
 ): Promise<JobDetails | null> {
-  const result = await prisma.jobDescription.updateMany({ where: { id: jobId, organizationId }, data });
-  return result.count > 0 ? findJobInOrganization(jobId, organizationId) : null;
+  const result = await prisma.jobDescription.updateMany({ where: { id: jobId, organizationId, ...(viewer && !canSeeAll(viewer) ? { createdById: viewer.id } : {}) }, data });
+  return result.count > 0 ? findJobInOrganization(jobId, organizationId, viewer) : null;
 }
 
-export async function deleteJob(jobId: string, organizationId: string): Promise<boolean> {
-  const result = await prisma.jobDescription.deleteMany({ where: { id: jobId, organizationId } });
+export async function deleteJob(jobId: string, organizationId: string, viewer?: Pick<Viewer, "id" | "role">): Promise<boolean> {
+  const result = await prisma.jobDescription.deleteMany({ where: { id: jobId, organizationId, ...(viewer && !canSeeAll(viewer) ? { createdById: viewer.id } : {}) } });
   return result.count > 0;
 }

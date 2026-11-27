@@ -1,3 +1,4 @@
+import { jobWhere as jobScope } from "@/server/access";
 import { handleRoute, jsonOk } from "@/server/api/http";
 import { requireRecruiter } from "@/server/auth";
 import { prisma } from "@/server/db";
@@ -32,8 +33,8 @@ export async function GET(): Promise<Response> {
       ? { id: "linkedin", name: "LinkedIn", status: "not_connected", detail: "Set APIFY_API_TOKEN in .env and restart the app." }
       : { id: "linkedin", name: "LinkedIn", status: "connected", detail: "Profiles found with Google X-Ray search (Apify); phone numbers read free from search snippets" };
 
-    const naukriCount = await prisma.candidate.count({ where: { source: "naukri" } }).catch(() => 0);
-    const beat = await prisma.extensionConnection.findFirst({ where: { organizationId: recruiter.organizationId }, orderBy: { lastSeenAt: "desc" } }).catch(() => null);
+    const naukriCount = await prisma.candidate.count({ where: { source: "naukri", matchScores: { some: { job: jobScope(recruiter) } } } }).catch(() => 0);
+    const beat = await prisma.extensionConnection.findFirst({ where: { recruiterId: recruiter.id }, orderBy: { lastSeenAt: "desc" } }).catch(() => null);
     const live = beat ? Date.now() - beat.lastSeenAt.getTime() < 45_000 : false;
     const naukri: IntegrationDto = !beat
       ? { id: "naukri", name: "Naukri", status: "not_connected", detail: "No extension has connected yet. Install the XS-Hunt extension, enter this site's address and log in." }

@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { ApiError } from "@/server/api/http";
 import { prisma } from "@/server/db";
 import { getEnv } from "@/server/env";
+import { bindRecruiterAi } from "@/server/ai/bind";
 import { ensureOpenRecruiter, findRecruiterByEmail, type RecruiterContext } from "@/server/repositories/recruiterRepository";
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -24,6 +25,12 @@ function sameSecret(a: string, b: string): boolean {
  * shared EXTENSION_API_KEY from .env (acts as EXTENSION_RECRUITER_EMAIL). Returns the recruiter the request acts as.
  */
 export async function requireExtensionUser(request: Request): Promise<RecruiterContext> {
+  const recruiter = await resolveExtensionUser(request);
+  await bindRecruiterAi(recruiter.id);
+  return recruiter;
+}
+
+async function resolveExtensionUser(request: Request): Promise<RecruiterContext> {
   const header = request.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!token) throw new ApiError(401, "Not signed in to the extension.");

@@ -15,7 +15,7 @@ export async function GET(request: Request, context: Ctx): Promise<Response> {
   return handleRoute(async () => {
     const { recruiter, job } = await requireJobAccess((await context.params).id);
     const ids = z.array(uuidSchema).min(2, "Pick at least 2 candidates.").max(5, "Compare up to 5 candidates.").parse((new URL(request.url).searchParams.get("ids") ?? "").split(",").filter(Boolean));
-    const { rows } = await listCandidateRows({ organizationId: recruiter.organizationId, jobId: job.id, limit: 300 });
+    const { rows } = await listCandidateRows({ viewer: recruiter, jobId: job.id, limit: 300 });
     const picked = ids.map((id) => rows.find((r) => r.matchId === id));
     if (picked.some((p) => !p)) throw new ApiError(404, "One of the candidates is not in this job.");
     const evals = await prisma.candidateEvaluation.findMany({ where: { jobId: job.id, candidateId: { in: picked.map((p) => p!.candidateId) } }, orderBy: { createdAt: "desc" } });

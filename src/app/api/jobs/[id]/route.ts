@@ -24,6 +24,7 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
     await requireWriter();
     const { id } = await context.params;
     const { recruiter, job } = await requireJobAccess(id);
+    if (job.createdById !== recruiter.id && recruiter.role !== "admin") throw new ApiError(403, "Only the HR who created this job (or an admin) can change it.");
     const body = jobDraftSchema.partial().parse(await request.json().catch(() => ({})));
     const updated = await updateJob(job.id, recruiter.organizationId, body);
     if (!updated) throw new ApiError(404, "Job not found.");
@@ -40,6 +41,7 @@ export async function DELETE(_request: Request, context: RouteContext): Promise<
     await requireWriter();
     const { id } = await context.params;
     const { recruiter, job } = await requireJobAccess(id);
+    if (job.createdById !== recruiter.id && recruiter.role !== "admin") throw new ApiError(403, "Only the HR who created this job (or an admin) can delete it.");
     await deleteJob(job.id, recruiter.organizationId);
     return jsonOk({ ok: true });
   });

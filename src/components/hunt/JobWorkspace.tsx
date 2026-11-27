@@ -13,6 +13,7 @@ import { SourcingDialog } from "../SourcingDialog";
 import { CandidateCard } from "./CandidateCard";
 import { CandidateDrawer } from "./CandidateDrawer";
 import { CompareDialog, RejectDialog, RetrievalDialog } from "./Dialogs";
+import { ExtensionStrip } from "./ExtensionStrip";
 import { FindCandidatesPanel } from "./FindCandidatesPanel";
 import { RubricEditor } from "./RubricEditor";
 import { Badge, Button, Card, Empty, inputClass, Notice, PageHeader, Skeleton } from "./ui";
@@ -74,6 +75,12 @@ export function JobWorkspace({ jobId }: { jobId: string }) {
     hunt.connection().then(setConn).catch(() => {});
     return () => clearInterval(t);
   }, []);
+  // While the extension is connected, new candidates from Naukri show up here without a refresh.
+  useEffect(() => {
+    if (!conn?.connected) return;
+    const t = setInterval(() => { if (document.visibilityState === "visible") void load(); }, 6000);
+    return () => clearInterval(t);
+  }, [conn?.connected, load]);
 
   const works = (id: string): boolean => {
     if (id === "naukri") return true; // the extension integration is real; its live state is shown next to the toggle
@@ -137,6 +144,7 @@ export function JobWorkspace({ jobId }: { jobId: string }) {
           </>
         }
       />
+      <ExtensionStrip jobId={jobId} conn={conn} canEdit={canEdit} captured={rows.filter((r) => r.sources.includes("naukri")).length} />
 
       {/* description */}
       {job && (

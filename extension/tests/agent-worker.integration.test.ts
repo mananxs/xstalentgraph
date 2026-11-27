@@ -86,6 +86,24 @@ describe("extension worker <-> platform", { skip }, () => {
     assert.equal(conn.version, "2.0.0-test");
   });
 
+  it("adopts a JD uploaded in the web app by itself, then sends the cards the HR views to that job (no start needed)", async () => {
+    const job = await hr("/api/jobs", { method: "POST", json: { title: "Auto Hand-off Engineer", description: "Run the platform. Notice period 30 days.", requiredSkills: ["Kubernetes", "Go"], preferredSkills: [], languages: ["Go"], locations: ["Hyderabad"], technologies: [], handsOn: [], remoteAllowed: false, experienceYears: 5 } });
+    assert.equal(job.status, 201, JSON.stringify(job.body));
+    const newJob = job.body.job.id as string;
+    await tick();
+    const adopted = ((await b.chrome.storage.local.get("activeJob")) as J).activeJob;
+    assert.equal(adopted?.id, newJob, "the new job became the extension's active job with no click in the extension");
+    const viewed = PAGES[1]!.map((c) => ({ rawText: c.rawText, profileUrl: c.profileUrl ?? undefined }));
+    const seen = await b.agent.autoCapture(newJob, viewed);
+    assert.equal(seen?.captured, 2);
+    assert.equal(await b.agent.autoCapture(newJob, viewed), null, "cards already sent are not sent again");
+    const rows = (await hr(`/api/jobs/${newJob}/candidates`)).body.rows as J[];
+    assert.equal(rows.length, 2, "they show up in the web app");
+    // restore the original job for the tests below
+    await hr(`/api/jobs/${jobId}/extension`, { method: "POST" });
+    await tick();
+  });
+
   it("reports a lost Naukri session honestly and blocks work until it is back", async () => {
     b.state.session = "expired";
     await tick();

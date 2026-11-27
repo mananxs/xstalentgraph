@@ -1,8 +1,10 @@
+import { jobWhere as jobScope, type Viewer } from "@/server/access";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
 import type { JobDetails } from "@/server/repositories/jobRepository";
 import { scoringJob } from "@/server/extension/scoring";
-import { evaluateCandidate, type CandidateFacts, type EvaluationResult } from "./evaluate";
+import { judgeCandidate } from "./aiJudge";
+import type { CandidateFacts, EvaluationResult } from "./evaluate";
 import { factsFromCandidateRow } from "./facts";
 import { findIdentity, normEmail, normPhone, type IdentityProbe, type MatchReason } from "./identity";
 import { defaultRubric, sanitizeRubric, type RubricData } from "./rubric";
@@ -64,18 +66,21 @@ const noteOf = (r: EvaluationResult) => (r.concerns[0] ? `${r.strengths[0] ?? ""
  * Evaluates one candidate for one job under the given rubric, stores the evaluation in the history, and refreshes the job's match row
  * (score, tier, matched/missing skills). A recruiter override and the stage are never touched.
  */
-export async function evaluateAndStore(p: { job: JobDetails; rubric: ActiveRubric; candidateId: string; facts: CandidateFacts; engine?: string }): Promise<{ evaluationId: string; result: EvaluationResult; matchId: string }> {
-  const result = evaluateCandidate(scoringJob(p.job), p.rubric.data, p.facts);
+export async function evaluateAndStore(p: { job: JobDetails; rubric: ActiveRubric; candidateId: string; facts: CandidateFacts; engine?: string; ai?: boolean }): Promise<{ evaluationId: string; result: EvaluationResult; matchId: string; engine: string; aiError?: string }> {
+  // Every candidate is judged by the AI against the JD and rubric (the HR's own key first); the rule engine is the labelled fallback.
+  const judged = await judgeCandidate({ ...scoringJob(p.job), description: p.job.description }, p.rubric.data, p.facts, { ai: p.ai });
+  const result = judged.result;
+  const engine = p.engine ?? judged.engine;
   const evaluation = await prisma.candidateEvaluation.create({
     data: {
       organizationId: p.job.organizationId, jobId: p.job.id, candidateId: p.candidateId, rubricId: p.rubric.id, rubricVersion: p.rubric.version,
       total: result.total, tier: result.tier, evidenceCoverage: result.evidenceCoverage,
-      dimensions: { ...result.dimensions, _meta: { band: result.band, mustHaveCoverage: result.mustHaveCoverage } } as unknown as Prisma.InputJsonValue,
-      strengths: result.strengths, concerns: result.concerns, missingInfo: result.missingInfo, engine: p.engine ?? ENGINE,
+      dimensions: { ...result.dimensions, _meta: { band: result.band, mustHaveCoverage: result.mustHaveCoverage, summary: judged.summary || undefined, aiError: judged.aiError } } as unknown as Prisma.InputJsonValue,
+      strengths: result.strengths, concerns: result.concerns, missingInfo: result.missingInfo, engine,
     },
     select: { id: true },
   });
-  const data = { status: "completed" as const, score: result.total, tier: result.tier, rubricVersion: p.rubric.version, latestEvaluationId: evaluation.id, matchedSkills: result.matchedSkills, missingSkills: result.missingSkills, model: p.engine ?? ENGINE, note: noteOf(result), error: null };
+  const data = { status: "completed" as const, score: result.total, tier: result.tier, rubricVersion: p.rubric.version, latestEvaluationId: evaluation.id, matchedSkills: result.matchedSkills, missingSkills: result.missingSkills, model: engine, note: judged.summary ? judged.summary.slice(0, 300) : noteOf(result), error: null };
   const match = await prisma.matchScore.upsert({
     where: { jobId_candidateId: { jobId: p.job.id, candidateId: p.candidateId } },
     create: { jobId: p.job.id, candidateId: p.candidateId, stage: "sourced", ...data },
@@ -83,11 +88,11 @@ export async function evaluateAndStore(p: { job: JobDetails; rubric: ActiveRubri
     select: { id: true, stage: true },
   });
   if (match.stage === "new") await prisma.matchScore.update({ where: { id: match.id }, data: { stage: "sourced", stageChangedAt: new Date() } });
-  return { evaluationId: evaluation.id, result, matchId: match.id };
+  return { evaluationId: evaluation.id, result, matchId: match.id, engine, aiError: judged.aiError };
 }
 
 /** Re-evaluates every candidate of a job under the CURRENT rubric (used after the rubric changes, when the recruiter asks for it). */
-export async function rescoreJob(job: JobDetails, actorId: string | null, limit = 1500): Promise<{ rescored: number }> {
+export async function rescoreJob(job: JobDetails, actorId: string | null, limit = 200): Promise<{ rescored: number }> {
   const rubric = await ensureRubric(job, actorId);
   const matches = await prisma.matchScore.findMany({
     where: { jobId: job.id },
@@ -110,10 +115,10 @@ export async function rescoreJob(job: JobDetails, actorId: string | null, limit 
 }
 
 /** Moves a match to another stage. Rejection needs a reason. Logs the change; keeps the legacy `shortlisted` flag in step. */
-export async function moveStage(p: { organizationId: string; matchId: string; to: string; actorId: string; reason?: string | null }): Promise<{ from: string; to: Stage }> {
+export async function moveStage(p: { organizationId: string; viewer?: Viewer; matchId: string; to: string; actorId: string; reason?: string | null }): Promise<{ from: string; to: Stage }> {
   if (!isStage(p.to)) throw new Error(`Unknown stage "${p.to}". Use one of: ${STAGES.join(", ")}`);
   if (p.to === "rejected" && !p.reason?.trim()) throw new Error("A rejection needs a reason.");
-  const match = await prisma.matchScore.findFirst({ where: { id: p.matchId, job: { organizationId: p.organizationId } }, select: { id: true, stage: true, jobId: true, candidateId: true } });
+  const match = await prisma.matchScore.findFirst({ where: { id: p.matchId, job: p.viewer ? jobScope(p.viewer) : { organizationId: p.organizationId } }, select: { id: true, stage: true, jobId: true, candidateId: true } });
   if (!match) throw new Error("Candidate not found in this organization.");
   if (match.stage === p.to) return { from: match.stage, to: p.to };
   await prisma.$transaction(async (tx) => {

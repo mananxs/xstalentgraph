@@ -10,6 +10,9 @@ export interface JobSummary {
   title: string;
   createdAt: string;
   matchCount: number;
+  /** Who created the job (shown to managers and admins, who see every HR's jobs). */
+  ownerId?: string;
+  ownerName?: string;
 }
 
 /** Full job details (what "current settings" searches with). */

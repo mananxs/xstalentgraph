@@ -16,7 +16,7 @@ type Ctx = { params: Promise<{ taskId: string }> };
 export async function GET(_r: Request, context: Ctx): Promise<Response> {
   return huntRoute(async () => {
     const recruiter = await requireRecruiter();
-    const view = await taskView(uuidSchema.parse((await context.params).taskId), recruiter.organizationId);
+    const view = await taskView(uuidSchema.parse((await context.params).taskId), recruiter);
     if (!view) throw new ApiError(404, "Task not found.");
     return NextResponse.json({ task: view });
   });
@@ -30,7 +30,7 @@ export async function PATCH(request: Request, context: Ctx): Promise<Response> {
     const recruiter = await requireWriter();
     const id = uuidSchema.parse((await context.params).taskId);
     const input = patch.parse(await request.json().catch(() => ({})));
-    const task = await prisma.sourcingTask.findFirst({ where: { id, organizationId: recruiter.organizationId } });
+    const task = await prisma.sourcingTask.findFirst({ where: { id, organizationId: recruiter.organizationId, createdById: recruiter.id } });
     if (!task) throw new ApiError(404, "Task not found.");
     if (task.sourcingState === "running") throw new ApiError(409, "Pause or stop sourcing before changing filters.");
     const data: Prisma.SourcingTaskUpdateInput = {};
@@ -38,6 +38,6 @@ export async function PATCH(request: Request, context: Ctx): Promise<Response> {
     if (input.limits !== undefined) data.limits = limitsSchema.parse(input.limits) as unknown as Prisma.InputJsonValue;
     await prisma.sourcingTask.update({ where: { id }, data });
     await taskEvent(id, "filters", input.filters !== undefined ? "Filters edited (not applied on Naukri yet)" : "Limits edited");
-    return NextResponse.json({ task: await taskView(id, recruiter.organizationId) });
+    return NextResponse.json({ task: await taskView(id, recruiter) });
   });
 }

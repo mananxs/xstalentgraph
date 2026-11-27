@@ -47,7 +47,7 @@ interface RetrievalState {
   returnUrl: string | null;
 }
 
-export const AGENT = { run: "agent.run", deviceId: "agent.deviceId", processed: "agent.processed", outbox: "agent.outbox", tab: "agent.tabId", status: "agent.status", retrieval: "agent.retrieval" } as const;
+export const AGENT = { activeJobAt: "agent.activeJobAt", run: "agent.run", deviceId: "agent.deviceId", processed: "agent.processed", outbox: "agent.outbox", tab: "agent.tabId", status: "agent.status", retrieval: "agent.retrieval" } as const;
 const RESDEX = "https://resdex.naukri.com/";
 const MAX_PROCESSED = 200;
 
@@ -353,15 +353,22 @@ export function createAgent(deps: AgentDeps) {
       if (!cfg?.apiKey) return;
       const s = await sessionNow();
       await flushOutbox().catch(() => {});
-      let hb: { commands: Command[]; tasks: Array<{ id: string; sourcingState: string }> };
+      let hb: { commands: Command[]; tasks: Array<{ id: string; sourcingState: string }>; activeJob?: (Json & { at: string }) | null };
       try {
-        hb = await api("/agent/heartbeat", { deviceId: await deviceId(), version, naukri: { state: s.state === "unknown" ? "unknown" : s.state, tabOpen: s.tabId !== null } });
+        hb = await api("/agent/heartbeat", { deviceId: await deviceId(), version, activeJobAt: (await get<string>(AGENT.activeJobAt)) ?? undefined, naukri: { state: s.state === "unknown" ? "unknown" : s.state, tabOpen: s.tabId !== null } });
       } catch (e) {
         await patchStatus({ connected: false, error: (e as Error).message, naukri: s.state });
         return;
       }
       const run = (await get<AgentRun>(AGENT.run)) ?? null;
       await patchStatus({ connected: true, lastOkAt: now(), error: null, naukri: s.state, taskId: run?.taskId ?? null, run });
+
+      // The job uploaded / opened in XS-Hunt becomes this extension's job by itself.
+      if (hb.activeJob?.job) {
+        await adoptJob(hb.activeJob);
+        await set(AGENT.activeJobAt, hb.activeJob.at);
+        await patchStatus({ note: `Job from XS-Hunt: ${(hb.activeJob.job as JobSummary).title}` });
+      }
 
       const done = await processedMap();
       for (const cmd of hb.commands ?? []) {
@@ -396,7 +403,30 @@ export function createAgent(deps: AgentDeps) {
     await event(taskId, reason ? "session" : "info", reason ? `Sourcing ${state}: ${reason}` : `Sourcing ${state}`, {}, state);
   }
 
-  return { tick, capture, event, onRunState, execute, sessionNow, deviceId, AGENT };
+  /* ───────────── auto-capture: what the HR is looking at goes to the active job ───────────── */
+  const sent = new Set<string>();
+  const hashOf = (text: string) => {
+    let h = 5381;
+    for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+    return String(h);
+  };
+  /** Sends cards not sent before (this browser session) to the platform. Safe to call on every scan; the platform de-duplicates too. */
+  async function autoCapture(jobId: string, cards: Array<{ rawText: string; profileUrl?: string }>): Promise<{ captured: number } | null> {
+    const fresh = cards.map((c, position) => ({ c, position, id: `${jobId}:${hashOf(c.rawText + (c.profileUrl ?? ""))}` })).filter((x) => x.c.rawText.length >= 20 && !sent.has(x.id));
+    if (!fresh.length) return null;
+    let captured = 0;
+    for (let i = 0; i < fresh.length; i += 50) {
+      const chunk = fresh.slice(i, i + 50);
+      const r = await api<{ captured: number }>("/agent/auto-capture", { jobId, cards: chunk.map((x) => ({ position: x.position, rawText: x.c.rawText.slice(0, 6000), profileUrl: x.c.profileUrl ?? null })) });
+      for (const x of chunk) sent.add(x.id);
+      captured += r.captured;
+    }
+    if (sent.size > 4000) sent.clear();
+    if (captured) await patchStatus({ note: `Sent ${captured} new candidate${captured === 1 ? "" : "s"} to XS-Hunt` });
+    return { captured };
+  }
+
+  return { tick, capture, autoCapture, event, onRunState, execute, sessionNow, deviceId, AGENT };
 }
 
 export type Agent = ReturnType<typeof createAgent>;

@@ -12,8 +12,10 @@ export interface Settings {
   autoSync: boolean;
   /** Start/Stop: while false (the default after every browser start / login) NOTHING is sent to the AI; only already-analyzed cards are shown. */
   scoring: boolean;
+  /** Send the candidate cards you are looking at in Resdex to the active job in XS-Hunt automatically (no AI is spent by this). */
+  autoSend: boolean;
 }
-export const DEFAULT_SETTINGS: Settings = { analyzedOnly: false, autoSync: true, scoring: false };
+export const DEFAULT_SETTINGS: Settings = { analyzedOnly: false, autoSync: true, scoring: false, autoSend: true };
 
 
 /** Everything the recruiter can set on the Resdex search page. Mirrors the server's SearchStateZ. */
@@ -231,6 +233,8 @@ export interface CardExtracted {
 
 export interface CardResult {
   domId: string;
+  /** ai = judged by the model against the JD and rubric; rules = the offline rule engine (no AI was available). */
+  scoredBy?: "ai" | "rules";
   /** Server-side candidate identity (profile URL or text fingerprint) — stable across re-renders and sessions. */
   key?: string;
   /** true = served from the score cache (no AI call was made for this card). */
@@ -381,6 +385,7 @@ export type ContentToBg =
 export type PanelToBg =
   | { type: "CONNECT"; config: Config }
   | { type: "LOGIN"; baseUrl: string; email: string; password: string }
+  | { type: "PAIR"; baseUrl: string; code: string }
   | { type: "LOGOUT" }
   | { type: "READ_PROFILE"; tabId: number }
   | { type: "ATTACH_CV"; tabId: number }

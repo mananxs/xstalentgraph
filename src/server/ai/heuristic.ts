@@ -16,11 +16,11 @@ export const XRAY_HEURISTIC_MODEL = "xray-heuristic";
 export const NAUKRI_EXT_MODEL = "naukri-ext";
 
 export const scoredByOf = (model: string | null | undefined): "ai" | "quick" | "xray" | "extension" =>
-  model === XRAY_HEURISTIC_MODEL ? "xray" : model === HEURISTIC_MODEL ? "quick" : model === NAUKRI_EXT_MODEL ? "extension" : "ai";
+  model === XRAY_HEURISTIC_MODEL ? "xray" : model === HEURISTIC_MODEL || model === "xs-hunt-standard" ? "quick" : model === NAUKRI_EXT_MODEL ? "extension" : "ai";
 
 /** True for every score produced without an AI model. */
 export const isQuickScoreModel = (model: string | null | undefined): boolean =>
-  model === HEURISTIC_MODEL || model === XRAY_HEURISTIC_MODEL;
+  model === HEURISTIC_MODEL || model === "xs-hunt-standard" || model === XRAY_HEURISTIC_MODEL;
 
 /** Known synonyms / abbreviations. Keys and values are lower case. */
 const SYNONYMS: Record<string, string[]> = {
