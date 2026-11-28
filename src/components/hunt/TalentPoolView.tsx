@@ -36,6 +36,7 @@ export function TalentPoolView({ initialTier }: { initialTier: string | null }) 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-zinc-950">{c.name}</h2>{c.sources.map((s) => <SourceBadge key={s} source={s} />)}{c.hasResume && <Badge tone="green">Resume saved</Badge>}</div>
                 <p className="text-sm text-zinc-700">{c.headline}</p>
+                {(c.links ?? []).length > 0 && <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs">{c.links!.map((l) => <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:underline">View profile on {l.source === "linkedin" ? "LinkedIn" : l.source === "naukri" ? "Naukri" : l.source === "github" ? "GitHub" : l.source} ↗</a>)}</p>}
                 <p className="text-xs text-zinc-500">{[c.location, c.experienceYears !== null ? `${c.experienceYears} yrs` : null].filter(Boolean).join(" · ")}</p>
                 {c.skills.length > 0 && <p className="mt-1 text-xs text-zinc-600">{c.skills.join(" · ")}</p>}
               </div>

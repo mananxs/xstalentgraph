@@ -36,12 +36,12 @@ const good = (over: Record<string, unknown> = {}) => ({
   candidateName: "Asha Rao", summary: "Strong SRE with hands-on Kubernetes and AWS.", matchedMustHave: ["Kubernetes", "Go", "AWS"], missingMustHave: [],
   dimensions: {
     skills: { score: 90, reason: "Built a Kubernetes platform on AWS with Go.", evidence: ["Built Kubernetes platform on AWS with Go", "a quote the candidate never wrote"] },
-    experience: { score: 100, reason: "7 years against 5 required.", evidence: [] },
-    compensation: { score: 100, reason: "Expects 28 LPA, budget 30.", evidence: [] },
-    availability: { score: null, reason: "Not stated.", evidence: [] },
-    location: { score: 100, reason: "Hyderabad.", evidence: [] },
+    experience: { score: 100, reason: "7 years against 5 required, SRE role.", evidence: ["Led SRE team"] },
+    projects: { score: 80, reason: "Platform build with measurable results.", evidence: ["cut deploy time 40%"] },
     education: { score: 100, reason: "B.Tech.", evidence: [] },
-    career: { score: 80, reason: "SRE who led a team.", evidence: ["Led SRE team"] },
+    tools: { score: null, reason: "No extra tools shown.", evidence: [] },
+    keywords: { score: 70, reason: "Most keywords present.", evidence: [] },
+    domain: { score: 60, reason: "Infra background.", evidence: [] },
   },
   ...over,
 });
@@ -54,9 +54,9 @@ describe("AI judge", () => {
     assert.equal(j.summary, "Strong SRE with hands-on Kubernetes and AWS.");
     const d = j.result.dimensions;
     assert.equal(d.skills!.score, 90);
-    assert.equal(d.availability!.status, "missing", "null from the model = missing information, not zero");
-    // weighted mean over the dimensions that have a score (availability excluded): (90*30+100*20+100*10+100*10+100*5+80*15)/(30+20+10+10+5+15)
-    assert.equal(j.result.total, Math.round((90 * 30 + 100 * 20 + 100 * 10 + 100 * 10 + 100 * 5 + 80 * 15) / 90));
+    assert.equal(d.tools!.status, "missing", "null from the model = no evidence");
+    // every scored factor counts; the one with no evidence (tools, weight 10) earns 0: (90*30+100*25+80*15+100*10+0*10+70*5+60*5)/100
+    assert.equal(j.result.total, Math.round((90 * 30 + 100 * 25 + 80 * 15 + 100 * 10 + 0 * 10 + 70 * 5 + 60 * 5) / 100));
   });
   it("keeps only evidence that is really in the candidate's text", async () => {
     replies = [good()];

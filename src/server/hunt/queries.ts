@@ -53,6 +53,18 @@ export interface CandidateQuery {
   offset?: number;
 }
 
+/** Every usable profile address of a person, one per source (LinkedIn, Naukri, GitHub, ...), http(s) only. Opened in a new tab by the UI. */
+export function profileLinks(c: { primarySource: string; profileUrl: string | null; sourceRecords?: Array<{ source: string; profileUrl: string | null }> }): Array<{ source: string; url: string }> {
+  const out: Array<{ source: string; url: string }> = [];
+  const add = (source: string, url: string | null | undefined) => {
+    const u = (url ?? "").trim();
+    if (/^https?:\/\//i.test(u) && !out.some((x) => x.url === u)) out.push({ source: normalizeSource(source), url: u });
+  };
+  add(c.primarySource, c.profileUrl);
+  for (const r of c.sourceRecords ?? []) add(r.source, r.profileUrl);
+  return out;
+}
+
 export async function listCandidateRows(query: CandidateQuery): Promise<{ rows: CandidateRow[]; total: number }> {
   const where: Prisma.MatchScoreWhereInput = {
     job: { ...jobScope(query.viewer), ...(query.jobId ? { id: query.jobId } : {}) },
@@ -71,7 +83,7 @@ export async function listCandidateRows(query: CandidateQuery): Promise<{ rows: 
       orderBy: query.sort === "score" || !query.sort ? [{ score: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }] : orderBy,
       take: Math.min(query.limit ?? 100, 300),
       skip: query.offset ?? 0,
-      include: { candidate: { select: { id: true, name: true, login: true, headline: true, experienceYears: true, location: true, ctc: true, noticePeriod: true, primarySource: true, sources: true, avatarUrl: true, fullProfile: true, resumeFileName: true, resumeText: true, _count: { select: { resumes: true } } } } },
+      include: { candidate: { select: { profileUrl: true, sourceRecords: { select: { source: true, profileUrl: true }, take: 6 }, id: true, name: true, login: true, headline: true, experienceYears: true, location: true, ctc: true, noticePeriod: true, primarySource: true, sources: true, avatarUrl: true, fullProfile: true, resumeFileName: true, resumeText: true, _count: { select: { resumes: true } } } } },
     }),
   ]);
   const evalIds = rows.map((r) => r.latestEvaluationId).filter((id): id is string => Boolean(id));
@@ -92,6 +104,7 @@ export async function listCandidateRows(query: CandidateQuery): Promise<{ rows: 
       primarySource: normalizeSource(m.candidate.primarySource),
       sources: [...new Set((m.candidate.sources.length ? m.candidate.sources : [m.candidate.primarySource]).map(normalizeSource))],
       avatarUrl: m.candidate.avatarUrl,
+      links: profileLinks(m.candidate),
       score: m.overrideScore ?? m.score,
       aiScore: m.score,
       tier,

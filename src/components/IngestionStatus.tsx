@@ -1,4 +1,4 @@
-import { Loader2, RotateCcw, Search, Sparkles } from "lucide-react";
+import { Loader2, Pause, Play, RotateCcw, Search, Sparkles, Square } from "lucide-react";
 import { useSourceName } from "@/hooks/useSourceName";
 import { SourceToggle } from "./SourceToggle";
 import type { BatchDto } from "@/lib/types";
@@ -14,6 +14,8 @@ interface IngestionStatusProps {
   onStart: () => void;
   /** Score the failed / Quick-scored candidates again, without searching GitHub. */
   onRetryFailed: () => void;
+  /** Pause / resume / stop the run in progress. */
+  onControl?: (action: "pause" | "resume" | "stop") => void;
 }
 
 /** Shortens the raw error text from the server so the banner stays readable. */
@@ -31,6 +33,8 @@ function describeProgress(batch: BatchDto, sourceName: string): string {
   if (batch.status === "queued") {
     return "Queued. If this stays here, start the worker with: npm run worker";
   }
+  if (batch.control === "pause") return `Paused. Found ${batch.profilesFound}, scored ${batch.evaluatedCount + batch.failedCount} of ${batch.evaluationTotal}. Press Resume to continue.`;
+  if (batch.control === "stop") return "Stopping: finishing the candidates already found…";
   if (batch.profilesFound === 0 && batch.evaluationTotal === 0) return `Searching ${sourceName} for candidates…`;
 
   const done = batch.evaluatedCount + batch.failedCount;
@@ -38,7 +42,9 @@ function describeProgress(batch: BatchDto, sourceName: string): string {
 }
 
 /** The "Find candidates" button plus the progress of the latest run. */
-export function IngestionStatus({ batch, isActive, isStarting, failedMatchCount, quickScoreCount = 0, onStart, onRetryFailed }: IngestionStatusProps) {
+export function IngestionStatus({ batch, isActive, isStarting, failedMatchCount, quickScoreCount = 0, onStart, onRetryFailed, onControl }: IngestionStatusProps) {
+  const paused = batch?.control === "pause";
+  const stopping = batch?.control === "stop";
   const source = useSourceName();
   const redoCount = failedMatchCount + quickScoreCount;
   const done = batch ? batch.evaluatedCount + batch.failedCount : 0;
@@ -51,11 +57,28 @@ export function IngestionStatus({ batch, isActive, isStarting, failedMatchCount,
         type="button"
         onClick={onStart}
         disabled={isActive || isStarting}
-        className="flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-10 items-center gap-2 whitespace-nowrap rounded-xl bg-accent px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isActive || isStarting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Search className="size-4" aria-hidden="true" />}
-        {isActive ? "Run in progress" : "Find candidates"}
+        {isActive ? (paused ? "Run paused" : stopping ? "Stopping…" : "Run in progress") : "Find candidates"}
       </button>
+
+      {isActive && onControl && !stopping && (
+        <div role="group" aria-label="Search controls" className="flex items-center gap-1.5">
+          {paused ? (
+            <button type="button" onClick={() => onControl("resume")} title="Resume searching and scoring" className="flex h-10 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-sm font-medium text-white hover:bg-emerald-700">
+              <Play className="size-4" aria-hidden="true" /> Resume
+            </button>
+          ) : (
+            <button type="button" onClick={() => onControl("pause")} title="Pause: no new pages are searched and nothing new is scored until you resume" className="flex h-10 items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+              <Pause className="size-4" aria-hidden="true" /> Pause
+            </button>
+          )}
+          <button type="button" onClick={() => { if (window.confirm("Stop this search? Candidates found so far are kept and scored; no more will be searched.")) onControl("stop"); }} title="Stop searching. What was found is kept." className="flex h-10 items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3.5 text-sm font-medium text-rose-700 hover:bg-rose-50">
+            <Square className="size-4" aria-hidden="true" /> Stop
+          </button>
+        </div>
+      )}
 
       {!isActive && redoCount > 0 && (
         <button

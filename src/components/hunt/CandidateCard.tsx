@@ -1,9 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bookmark, BookmarkCheck, Briefcase, ChevronDown, Clock, FileText, GitCompareArrows, MapPin, StickyNote, UserRound, Wallet, XCircle } from "lucide-react";
+import { Bookmark, BookmarkCheck, Briefcase, ChevronDown, Clock, ExternalLink, FileText, GitCompareArrows, MapPin, StickyNote, UserRound, Wallet, XCircle } from "lucide-react";
 import { useState } from "react";
-import { STAGES, STAGE_LABEL, type CandidateRow } from "@/lib/hunt";
+import { SOURCE_LABEL, STAGES, STAGE_LABEL, type CandidateRow } from "@/lib/hunt";
+
+const LINK_ORDER = ["linkedin", "naukri", "github", "cutshort"];
 import { ScoreRing } from "../ScoreRing";
 import { WhyMatches } from "./WhyMatches";
 import { Avatar, Badge, Button, SourceBadge, TierBadge } from "./ui";
@@ -26,6 +28,7 @@ export function CandidateCard({ row, rank, selected, canEdit, onSelect, onShortl
   const [why, setWhy] = useState(false);
   const shortlisted = row.shortlisted;
   const name = row.name ?? "Unnamed candidate";
+  const links = [...(row.links ?? [])].sort((a, b) => LINK_ORDER.indexOf(a.source) - LINK_ORDER.indexOf(b.source));
 
   return (
     <motion.article
@@ -126,9 +129,24 @@ export function CandidateCard({ row, rank, selected, canEdit, onSelect, onShortl
             </option>
           ))}
         </select>
-        <Button size="sm" onClick={() => onOpen(row, "overview")}>
-          <UserRound className="size-3.5" aria-hidden="true" /> View Profile
-        </Button>
+        {links.length > 0 ? (
+          <>
+            {/* View Profile opens the person's real profile (LinkedIn first) in a new tab; Details opens the full evaluation here. */}
+            {links.map((l, i) => (
+              <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" title={l.url} className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${i === 0 ? "border-transparent bg-accent text-white hover:bg-accent-strong" : "border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50"}`}>
+                <ExternalLink className="size-3.5" aria-hidden="true" /> {i === 0 ? "View Profile" : SOURCE_LABEL[l.source as keyof typeof SOURCE_LABEL] ?? l.source}
+                {i === 0 && <span className="font-normal opacity-80">· {SOURCE_LABEL[l.source as keyof typeof SOURCE_LABEL] ?? l.source}</span>}
+              </a>
+            ))}
+            <Button size="sm" onClick={() => onOpen(row, "overview")}>
+              <UserRound className="size-3.5" aria-hidden="true" /> Details
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" onClick={() => onOpen(row, "overview")} title="No profile link was captured for this candidate yet">
+            <UserRound className="size-3.5" aria-hidden="true" /> View Profile
+          </Button>
+        )}
         <Button size="sm" onClick={() => onOpen(row, "resume")} title={row.hasResume ? "Open the saved resume" : "No resume saved yet. Request it from the toolbar after selecting this candidate."}>
           <FileText className="size-3.5" aria-hidden="true" /> {row.hasResume ? "View Resume" : "Resume"}
         </Button>

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 type Ctx = { params: Promise<{ id: string }> };
 
-/** GET /api/jobs/:id/rubric - the current seven-dimension rubric plus its version history. */
+/** GET /api/jobs/:id/rubric - the current standard rubric plus its version history. */
 export async function GET(_r: Request, context: Ctx): Promise<Response> {
   return handleRoute(async () => {
     const { recruiter, job } = await requireJobAccess((await context.params).id);

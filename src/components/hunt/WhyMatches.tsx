@@ -5,7 +5,7 @@ import { hunt, type DimensionResult, type MatchDetail } from "@/lib/hunt";
 import { toMessage } from "@/lib/api";
 import { Badge, Button, inputClass, Notice, ProgressBar, Skeleton } from "./ui";
 
-const LABEL: Record<string, string> = { skills: "Skills", experience: "Experience", compensation: "Compensation", availability: "Availability", location: "Location", education: "Education", career: "Career Background" };
+const LABEL: Record<string, string> = { skills: "Technical skills match", experience: "Relevant work experience", projects: "Project relevance", education: "Qualifications / education", tools: "Tools, technologies & frameworks", keywords: "Keywords & ATS", domain: "Domain / industry", compensation: "Compensation (flag)", availability: "Notice period (flag)", location: "Location (flag)", career: "Career background (old)" };
 const STATUS_TONE = { confirmed: "green", mismatch: "red", missing: "amber", skipped: "neutral" } as const;
 const STATUS_TEXT = { confirmed: "Confirmed", mismatch: "Mismatch", missing: "Missing information", skipped: "Not scored (rubric sets no requirement)" } as const;
 

@@ -30,6 +30,8 @@ export interface CandidateRow {
   primarySource: string;
   sources: string[];
   avatarUrl: string | null;
+  /** Profile addresses on the platforms the person was found on (LinkedIn, Naukri, ...). Open in a new tab. */
+  links: Array<{ source: string; url: string }>;
   score: number | null;
   aiScore: number | null;
   tier: Tier | null;
@@ -73,6 +75,7 @@ export interface Evaluation {
   createdAt: string;
 }
 export interface MatchDetail {
+  links?: Array<{ source: string; url: string }>;
   match: { id: string; stage: string; rejectionReason: string | null; shortlisted: boolean; aiScore: number | null; overrideScore: number | null; overrideTier: string | null; overrideReason: string | null; overrideAt: string | null; job: { id: string; title: string }; candidate: { id: string; name: string | null; headline: string | null; primarySource: string; sources: string[] } };
   evaluation: Evaluation | null;
   history: Array<{ id: string; total: number; tier: Tier; rubricVersion: number; evidenceCoverage: number; engine: string; createdAt: string }>;
@@ -134,7 +137,7 @@ export const hunt = {
   },
   talentPool: (q: { q?: string; source?: string; offset?: number }) => {
     const p = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]));
-    return request<{ total: number; candidates: Array<{ id: string; name: string; headline: string | null; location: string | null; experienceYears: number | null; primarySource: string; sources: string[]; skills: string[]; hasResume: boolean; jobs: Array<{ matchId: string; jobId: string; jobTitle: string; score: number | null; tier: Tier | null; stage: string }> }> }>(`/api/talent-pool?${p}`);
+    return request<{ total: number; candidates: Array<{ id: string; links?: Array<{ source: string; url: string }>; name: string; headline: string | null; location: string | null; experienceYears: number | null; primarySource: string; sources: string[]; skills: string[]; hasResume: boolean; jobs: Array<{ matchId: string; jobId: string; jobTitle: string; score: number | null; tier: Tier | null; stage: string }> }> }>(`/api/talent-pool?${p}`);
   },
   team: () => request<{ me: { id: string; role: string }; members: Array<{ id: string; email: string; name: string; role: string; createdAt: string; canSignIn: boolean; google: boolean; lastLoginAt: string | null; extensionKeys: number; jobs: number; candidates: number; extensionOnline: boolean }> }>("/api/team"),
   addMember: (body: { email: string; name?: string; password?: string; role: string }) => send<{ member: { id: string } }>("POST", "/api/team", body),

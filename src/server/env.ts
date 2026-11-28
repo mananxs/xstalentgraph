@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+/** A true/false variable that forgives typos and capitals ("FALSE", " true ", "FLASE"): only a clear yes turns it on, anything else is the safe default. */
+const flag = (defaultValue: boolean) =>
+  z.preprocess((v) => {
+    const t = String(v ?? "").trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(t)) return "true";
+    if (["false", "0", "no", "off"].includes(t)) return "false";
+    return defaultValue ? "true" : "false";
+  }, z.enum(["true", "false"])).transform((v) => v === "true");
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   DIRECT_URL: z.string().min(1),
@@ -55,14 +64,8 @@ const envSchema = z.object({
   /** Signs the login cookie. Defaults to TOKEN_ENCRYPTION_KEY, so login works without extra setup. */
   AUTH_SECRET: z.string().min(16).optional(),
   /** TEMPORARY testing switch: no login at all, everyone who can open the site acts as one recruiter. Anyone with the URL sees all data. */
-  OPEN_ACCESS: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((value) => value === "true"),
-  DEV_AUTH: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((value) => value === "true"),
+  OPEN_ACCESS: flag(false),
+  DEV_AUTH: flag(false),
   /** Google sign-in (Cloud Console > OAuth client). Without both, the Google button is hidden and e-mail + password login is used. */
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -74,14 +77,11 @@ const envSchema = z.object({
   /** Public URL of this site (needed only if the request URL is not the public one). */
   APP_URL: z.string().url().optional(),
   /** Keep e-mail + password login next to Google (default true). Set false to allow Google only. */
-  ALLOW_PASSWORD_LOGIN: z.enum(["true", "false"]).default("true").transform((v) => v === "true"),
+  ALLOW_PASSWORD_LOGIN: flag(true),
   DEV_RECRUITER_EMAIL: z.string().email().default("recruiter@talentgraph.dev"),
   EVAL_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(2),
   /** Run the background worker inside the web server too (default true), so runs never sit in "Queued". */
-  EMBEDDED_WORKER: z
-    .enum(["true", "false"])
-    .default("true")
-    .transform((value) => value === "true"),
+  EMBEDDED_WORKER: flag(true),
   /** How many GitHub profiles one "Find candidates" run fetches (the dashboard shows the top 10). */
   SOURCING_MAX_PROFILES: z.coerce.number().int().min(10).max(200).default(30),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),

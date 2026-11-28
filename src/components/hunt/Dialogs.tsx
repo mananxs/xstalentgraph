@@ -75,7 +75,7 @@ export function RetrievalDialog({ open, jobId, rows, onClose, onDone }: { open: 
 }
 
 /* ───────────────────────── compare 2 to 5 ───────────────────────── */
-const ROWS: Array<{ key: string; label: string }> = [{ key: "skills", label: "Skills" }, { key: "experience", label: "Experience" }, { key: "compensation", label: "Compensation" }, { key: "availability", label: "Availability / notice" }, { key: "location", label: "Location" }, { key: "education", label: "Education" }, { key: "career", label: "Career background / industry" }];
+const ROWS: Array<{ key: string; label: string }> = [{ key: "skills", label: "Technical skills" }, { key: "experience", label: "Work experience" }, { key: "projects", label: "Project relevance" }, { key: "education", label: "Education" }, { key: "tools", label: "Tools & frameworks" }, { key: "keywords", label: "Keywords / ATS" }, { key: "domain", label: "Domain / industry" }, { key: "compensation", label: "Compensation (flag)" }, { key: "availability", label: "Notice period (flag)" }, { key: "location", label: "Location (flag)" }];
 
 export function CompareDialog({ open, jobId, ids, onClose }: { open: boolean; jobId: string; ids: string[]; onClose: () => void }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof hunt.compare>> | null>(null);

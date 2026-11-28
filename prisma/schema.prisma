@@ -246,6 +246,8 @@ model IngestionBatch {
   maxProfiles        Int         @default(100)
   /// "github" (search) or "linkedin" (Google X-Ray search via Apify, or the URLs in linkedinUrls).
   source             String      @default("github")
+  /// What the recruiter asked for: run | pause | stop. The worker checks it between pages and between candidates.
+  control            String      @default("run")
   linkedinUrls       String[]    @default([])
   profilesFound      Int         @default(0)
   candidatesUpserted Int         @default(0)

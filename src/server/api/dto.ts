@@ -49,6 +49,7 @@ export function toBatchDto(batch: BatchView): BatchDto {
   return {
     id: batch.id,
     status: batch.status,
+    control: batch.control === "pause" || batch.control === "stop" ? batch.control : "run",
     maxProfiles: batch.maxProfiles,
     profilesFound: batch.profilesFound,
     candidatesUpserted: batch.candidatesUpserted,

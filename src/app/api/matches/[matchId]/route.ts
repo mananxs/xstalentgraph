@@ -7,12 +7,13 @@ import { requireRecruiter, requireWriter } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { moveStage, recordEvent } from "@/server/hunt/store";
 import { isShortlistedStage, STAGES } from "@/server/hunt/stages";
+import { profileLinks } from "@/server/hunt/queries";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ matchId: string }> };
 
 async function loadMatch(id: string, viewer: Viewer) {
-  const match = await prisma.matchScore.findFirst({ where: { id, job: jobScope(viewer) }, include: { candidate: { select: { id: true, name: true, headline: true, primarySource: true, sources: true } }, job: { select: { id: true, title: true } } } });
+  const match = await prisma.matchScore.findFirst({ where: { id, job: jobScope(viewer) }, include: { candidate: { select: { id: true, name: true, headline: true, primarySource: true, sources: true, profileUrl: true, sourceRecords: { select: { source: true, profileUrl: true }, take: 6 } } }, job: { select: { id: true, title: true } } } });
   if (!match) throw new ApiError(404, "Candidate not found.");
   return match;
 }
@@ -32,6 +33,7 @@ export async function GET(_r: Request, context: Ctx): Promise<Response> {
     ]);
     return NextResponse.json({
       match: { id: match.id, stage: match.stage, rejectionReason: match.rejectionReason, shortlisted: match.shortlisted, aiScore: match.score, overrideScore: match.overrideScore, overrideTier: match.overrideTier, overrideReason: match.overrideReason, overrideAt: match.overrideAt, job: match.job, candidate: match.candidate },
+      links: profileLinks(match.candidate),
       evaluation, history, notes, interviews, reminders, events,
     });
   });

@@ -7,7 +7,7 @@ import { Reveal, SplitHeading, Tilt } from "./kinetic";
 
 interface Item { n: string; t: string; d: string; more: string; soon?: boolean; tone: string }
 const ITEMS: Item[] = [
-  { n: "01", t: "Brief & rubric", d: "Describe the role, get a scorecard.", more: "A seven-dimension rubric is drafted from your brief. Edit weights per job; every version is kept so you can see what changed.", tone: "from-orange-100 to-pink-100" },
+  { n: "01", t: "Brief & rubric", d: "Describe the role, get a scorecard.", more: "A standard scorecard (skills, experience, projects, education, tools, keywords, domain) is drafted from your brief. Edit weights per job; every version is kept so you can see what changed.", tone: "from-orange-100 to-pink-100" },
   { n: "02", t: "Sourcing", d: "Profiles that fit, found for you.", more: "Start, pause, resume or stop sourcing independently of scoring. Duplicates are merged into a single candidate card.", tone: "from-pink-100 to-violet-100" },
   { n: "03", t: "Scoring", d: "Every candidate, same yardstick.", more: "Each profile is graded dimension by dimension with reasons you can read, not a black-box number.", tone: "from-violet-100 to-blue-100" },
   { n: "04", t: "Resume vault", d: "Profiles and CVs, kept and audited.", more: "Approved profiles and original resume files live in your workspace. Every view and download is logged.", tone: "from-blue-100 to-cyan-100" },

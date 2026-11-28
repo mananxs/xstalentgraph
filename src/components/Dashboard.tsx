@@ -149,6 +149,7 @@ export function Dashboard({ initialJobId, initialTab }: DashboardProps) {
           quickScoreCount={quickCount}
           onStart={() => setDialogOpen(true)}
           onRetryFailed={() => void ingestion.start({ rescoreOnly: true })}
+          onControl={(a) => void ingestion.control(a)}
         />
       </header>
 

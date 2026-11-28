@@ -196,6 +196,8 @@ export class ApifySerpProvider implements SearchProvider {
     job: DiscoveryJobInput,
     maxCandidates: number,
     onNewCandidates?: (candidates: SerpCandidate[]) => Promise<void>,
+    /** Called before each paid search run: waits while the recruiter has paused, and may throw to stop the search. */
+    beforeRun?: () => Promise<void>,
   ): Promise<DiscoveryResult> {
     const queries = buildMicroQueries(job, { maxQueries: this.options.maxQueries ?? DEFAULT_MAX_MICRO_QUERIES });
     const perRun = Math.max(1, this.options.queriesPerRun ?? DEFAULT_QUERIES_PER_RUN);
@@ -205,6 +207,7 @@ export class ApifySerpProvider implements SearchProvider {
     let lastError: unknown;
 
     for (let start = 0; start < queries.length && found.size < maxCandidates; start += perRun) {
+      if (beforeRun) await beforeRun();
       const batch = queries.slice(start, start + perRun);
       queriesTried.push(...batch);
       const added = new Map<string, number>(batch.map((query) => [query, 0]));

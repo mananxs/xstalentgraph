@@ -66,14 +66,14 @@ export const AGENT_STEPS = [
   "Reading the job description and building the rubric",
   "Searching and reading profiles that fit",
   "Saving every candidate to the role pool",
-  "Scoring each candidate on seven dimensions",
+  "Scoring each candidate on a weighted scorecard",
   "Ranking them and waiting for your approval",
 ];
 
 export const FAQS: Array<{ q: string; a: string }> = [
   { q: "What is XS-Hunt?", a: "An AI recruiting workspace. You describe the role in plain English; agents build the rubric, search for matching profiles, score each one and rank them. You review the shortlist and decide who moves forward." },
   { q: "Does anything happen without my approval?", a: "No. Agents do the groundwork, but opening a full profile, downloading a resume and moving a candidate between stages are your calls. Anything that may use credits asks you to confirm first." },
-  { q: "How are candidates scored?", a: "On a rubric of seven dimensions: skills, experience, compensation, availability, location, education and career background, plus optional custom criteria. Weights are editable per job and every version is kept." },
+  { q: "How are candidates scored?", a: "Every candidate is judged by AI against your job description on a weighted scorecard: technical skills 30, relevant experience 25, project relevance 15, education 10, tools and frameworks 10, keywords 5, domain 5. A factor the profile does not prove earns nothing, so one strong match can never make someone a perfect fit. Weights are editable per job and every version is kept." },
   { q: "Where do resumes and profiles go?", a: "Into your XS-Hunt workspace, tied to the candidate and visible only to your organisation. Every view and download is written to an audit log." },
   { q: "Can sourcing and AI scoring run separately?", a: "Yes. Sourcing and AI analysis each have their own Start, Pause, Resume and Stop. Collect candidates without spending any AI, score the ones you already have, or run both together." },
   { q: "Is outreach, interviewing or scheduling included?", a: "Not yet. Those are on the roadmap and marked Coming soon on this page. Today XS-Hunt covers brief, search, scoring, shortlist, pipeline and resume vault." },

@@ -69,7 +69,8 @@ describe("XS-Hunt: platform <-> extension workflow", { skip }, () => {
     assert.equal(r.body.task.aiState, "idle");
     const rubric = await hr(`/api/jobs/${jobId}/rubric`);
     assert.equal(rubric.body.version, 1);
-    assert.equal(rubric.body.rubric.dimensions.length, 7);
+    assert.equal(rubric.body.rubric.dimensions.length, 10);
+    assert.equal(rubric.body.rubric.dimensions.filter((d: J) => d.enabled).reduce((sum: number, d: J) => sum + d.weight, 0), 100, "the standard scored factors add up to 100");
   });
 
   it("refuses to send commands while no extension is connected (no fake success)", async () => {
@@ -176,7 +177,7 @@ describe("XS-Hunt: platform <-> extension workflow", { skip }, () => {
     assert.ok(["strong", "potential", "provisional"].includes(santhosh.tier), santhosh.tier);
     assert.equal(santhosh.rubricVersion, 1);
     const dims = (await hr(`/api/matches/${santhosh.matchId}`)).body.evaluation.dimensions;
-    for (const k of ["skills", "experience", "compensation", "availability", "location", "education", "career"]) assert.ok(dims[k], `dimension ${k}`);
+    for (const k of ["skills", "experience", "projects", "education", "tools", "keywords", "domain", "compensation", "availability", "location"]) assert.ok(dims[k], `dimension ${k}`);
     assert.equal(dims.availability.status, "confirmed", "30 days notice is stated on the card");
     const vib = await hr(`/api/matches/${vibhuti.matchId}`);
     assert.equal(vib.body.evaluation.dimensions.availability.status, "missing", "an absent notice period is missing information, not a mismatch");
@@ -413,6 +414,37 @@ describe("XS-Hunt: platform <-> extension workflow", { skip }, () => {
     const go = await fetch(`${BASE}/api/auth/google`, { redirect: "manual" });
     assert.equal(go.status, 307);
     assert.match(go.headers.get("location") ?? "", /error=google_not_configured/);
+  });
+
+  it("search runs can be paused, resumed and stopped (play / pause / stop), by their owner only", async () => {
+    const job = await hr("/api/jobs", { method: "POST", json: { title: "Control Test", description: "Go on AWS.", requiredSkills: ["Go"], preferredSkills: [], locations: ["Pune"], languages: [], technologies: [], handsOn: [], remoteAllowed: false, experienceYears: 3 } });
+    const id = job.body.job.id as string;
+    const start = await hr(`/api/jobs/${id}/ingest`, { method: "POST", json: { linkedinUrls: ["https://www.linkedin.com/in/test-person-1"] } });
+    assert.equal(start.status, 202, JSON.stringify(start.body));
+    const batch = `/api/jobs/${id}/batches/${start.body.batchId}`;
+    assert.equal((await hr(batch)).body.batch.control, "run");
+    assert.equal((await hr(batch, { method: "PATCH", json: { action: "pause" } })).body.batch.control, "pause");
+    assert.equal((await hr(batch, { method: "PATCH", json: { action: "resume" } })).body.batch.control, "run");
+    assert.equal((await hr2(batch, { method: "PATCH", json: { action: "stop" } })).status, 404, "another HR cannot control it");
+    assert.equal((await hr(batch, { method: "PATCH", json: { action: "bogus" } })).status, 400);
+    assert.equal((await hr(batch, { method: "PATCH", json: { action: "stop" } })).body.batch.control, "stop");
+    assert.equal((await hr(batch, { method: "PATCH", json: { action: "resume" } })).status, 409, "a stopped run cannot be resumed");
+  });
+
+  it("candidate rows carry the profile link, so View Profile opens the person's real profile page", async () => {
+    const li = await hr("/api/jobs", { method: "POST", json: { title: "Link Test", description: "Run the platform.", requiredSkills: ["Go"], preferredSkills: [], locations: ["Hyderabad"], languages: [], technologies: [], handsOn: [], remoteAllowed: false, experienceYears: 3 } });
+    assert.equal(li.status, 201);
+    const jid = li.body.job.id as string;
+    const url = "https://resdex.naukri.com/v3/candidate/profile?candidateId=link-test-1";
+    const cap = await agent.call("/agent/auto-capture", { jobId: jid, cards: [{ position: 0, rawText: POOJA, profileUrl: url }, { position: 1, rawText: VIBHUTI }] });
+    assert.equal(cap.status, 200, JSON.stringify(cap.body));
+    const rows = (await hr(`/api/jobs/${jid}/candidates`)).body.rows as J[];
+    const withLink = rows.find((r) => r.name === "Pooja Jaiswar")!;
+    assert.deepEqual(withLink.links, [{ source: "naukri", url }]);
+    const detail = (await hr(`/api/matches/${withLink.matchId}`)).body;
+    assert.deepEqual(detail.links, [{ source: "naukri", url }], "the drawer gets it too");
+    assert.deepEqual(rows.find((r) => r.name === "Vibhuti Goel")!.links, [], "no link captured = no fake link");
+    assert.ok(((await hr("/api/talent-pool")).body.candidates as J[]).some((c) => c.links?.length), "the talent pool shows links too");
   });
 
   it("roles: a viewer can read but not change anything; admins manage the team", async () => {

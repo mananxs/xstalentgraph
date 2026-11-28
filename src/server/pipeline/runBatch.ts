@@ -16,10 +16,15 @@ import { buildCutshortSearch } from "@/server/sourcing/providers/cutshort/search
 import { ApifySerpProvider } from "@/server/sourcing/providers/search/apifySerp";
 import type { SerpCandidate } from "@/server/sourcing/providers/search/types";
 import { createLogger } from "@/server/logger";
+import { prisma } from "@/server/db";
+import { ensureRubric, evaluateAndStore, type ActiveRubric } from "@/server/hunt/store";
+import { factsFromCandidateRow } from "@/server/hunt/facts";
 import {
   completeBatch,
   failBatch,
+  getBatchControl,
   incrementBatchResult,
+  touchBatch,
   updateBatchCounters,
   type ClaimedBatch,
 } from "@/server/repositories/batchRepository";
@@ -71,6 +76,9 @@ const REVIEW_BATCH_SIZE = 5;
  * (and the ranking re-sorts) while the search is still going.
  * Never throws: any fatal problem marks the batch as failed with the error text saved.
  */
+/** Thrown inside the search loop when the recruiter pressed Stop: the search ends, what was found is kept and scored. */
+class SearchStopped extends Error {}
+
 export async function runBatch(batch: ClaimedBatch): Promise<void> {
   const log = createLogger("pipeline").child({ batchId: batch.id, jobId: batch.jobId });
   log.info("batch started");
@@ -78,6 +86,12 @@ export async function runBatch(batch: ClaimedBatch): Promise<void> {
   try {
     await executeBatch(batch, log);
   } catch (error) {
+    if (error instanceof SearchStopped) {
+      // Pressed Stop before anything was saved: that is a normal end, not a failure.
+      log.info("batch stopped by the recruiter before any candidate was found");
+      await completeBatch(batch.id, "Stopped by you before any candidate was found.");
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     log.error({ err: error }, "batch failed");
     await failBatch(batch.id, message);
@@ -98,6 +112,40 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
   const scheduledMatchIds = new Set<string>();
   const backgroundWork: Promise<void>[] = [];
   const scoring = { failed: 0, firstError: "", quick: 0, quickReason: "" };
+  /** Set when the recruiter pressed Stop: no more pages are fetched, but what is already saved is still scored. */
+  let stopped = false;
+
+  /** The job's current rubric (created / upgraded on first use), shared by every candidate of this run. */
+  let rubricPromise: Promise<ActiveRubric> | undefined;
+  /**
+   * Scores one saved candidate the standard way: the AI judges every factor of the rubric against the JD (the recruiter's own key first),
+   * with the labelled offline rule engine as the fallback, and the result is stored with its evidence. Same engine as the Naukri cards.
+   */
+  async function judgeAndStore(item: PendingEvaluation): Promise<{ score: number; engine: string; aiError?: string }> {
+    const rubric = await (rubricPromise ??= ensureRubric(job as JobDetails, batch.requestedById));
+    const row = await prisma.candidate.findUnique({ where: { id: item.candidateId }, select: { name: true, headline: true, skills: true, experienceYears: true, ctc: true, noticePeriod: true, location: true, bio: true, profileText: true, resumeText: true } });
+    const base = row ? factsFromCandidateRow(row) : { skills: [], expYears: null, currentCtcLpa: null, expectedCtcLpa: null, noticeDays: null, text: "" };
+    const facts = { ...base, text: [item.profileText, base.text].filter(Boolean).join("\n").slice(0, 20_000) };
+    const r = await evaluateAndStore({ job: job as JobDetails, rubric, candidateId: item.candidateId, facts });
+    return { score: r.result.total, engine: r.engine, aiError: r.aiError };
+  }
+
+  /** Waits while the recruiter has the run paused (keeping the batch alive); returns at once on run or stop. */
+  async function pauseGate(): Promise<void> {
+    let lastTouch = Date.now();
+    while ((await getBatchControl(batch.id)) === "pause") {
+      if (Date.now() - lastTouch > 30_000) {
+        await touchBatch(batch.id);
+        lastTouch = Date.now();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  }
+  /** Called before every page of search results: honours Pause, and throws SearchStopped on Stop. */
+  async function searchGate(): Promise<void> {
+    await pauseGate();
+    if ((await getBatchControl(batch.id)) === "stop") throw new SearchStopped();
+  }
   /** LinkedIn tiering counters, reported in the batch note. */
   /** Problems with a candidate source (Apify, Cutshort). Shown to the recruiter; successes never are. */
   const sourceNotes: string[] = [];
@@ -120,14 +168,14 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
    * marked "failed" when even saving the result goes wrong (for example the database is unreachable).
    */
   async function scoreOne(item: PendingEvaluation): Promise<void> {
+    await pauseGate();
     try {
-      const result = await matcher.evaluateSafely(job as JobDetails, item.profileText);
-      if (result.fallbackReason) {
+      const result = await judgeAndStore(item);
+      if (result.aiError) {
         scoring.quick += 1;
-        scoring.quickReason ||= result.fallbackReason;
-        log.warn({ matchId: item.matchId, reason: result.fallbackReason.slice(0, 200) }, "AI unavailable, used Quick score");
+        scoring.quickReason ||= result.aiError;
+        log.warn({ matchId: item.matchId, reason: result.aiError.slice(0, 200) }, "AI unavailable, used the rule-based Quick score");
       }
-      await markMatchCompleted(item.matchId, result);
       await incrementBatchResult(batch.id, "evaluated");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -165,8 +213,10 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
     const client = new GitHubClient({ token, pageSize: GITHUB_PAGE_SIZE });
     const queries = buildSearchQueries(job);
 
+    try {
     await client.searchProfiles(queries, batch.maxProfiles, {
       onNewProfiles: async (profiles) => {
+        await searchGate();
         // Save them. From now on they are visible in the dashboard as "scoring".
         const idByGithubId = await upsertCandidates(
           profiles.map((profile) => ({ profile, profileText: buildProfileText(profile) })),
@@ -193,9 +243,13 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
         );
       },
     });
-    log.info({ profilesFound }, "github search done");
+    } catch (error) {
+      if (!(error instanceof SearchStopped)) throw error;
+      stopped = true;
+    }
+    log.info({ profilesFound, stopped }, "github search done");
 
-    if (profilesFound === 0 && scheduledMatchIds.size === 0) {
+    if (profilesFound === 0 && scheduledMatchIds.size === 0 && !stopped) {
       throw new Error(
         "GitHub returned no profiles for this job's languages and locations. Try a broader location or another language.",
       );
@@ -215,13 +269,17 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
      * reaches the (paid) enrichment fallback, capped per run. Everything else costs nothing.
      */
     async function scoreSerpOne(item: PendingEvaluation): Promise<void> {
+      await pauseGate();
       const known = serpByCandidateId.get(item.candidateId);
       try {
-        const result = scoreCandidate(job as JobDetails, item.profileText, { model: XRAY_HEURISTIC_MODEL });
-        await markMatchCompleted(item.matchId, result);
+        const result = await judgeAndStore(item);
+        if (result.aiError) {
+          scoring.quick += 1;
+          scoring.quickReason ||= result.aiError;
+        }
         await incrementBatchResult(batch.id, "evaluated");
         tiers.scored += 1;
-        log.debug({ matchId: item.matchId, score: result.score, breakdown: result.breakdown }, "x-ray candidate scored");
+        log.debug({ matchId: item.matchId, score: result.score, engine: result.engine }, "candidate scored");
 
         if (result.score > TIER1_THRESHOLD) tiers.tier1 += 1;
         // Below ENRICHMENT_MIN_SCORE (75): never spend credits. With a phone (snippet or stored): nothing to buy either.
@@ -258,6 +316,7 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
 
     /** Saves one batch of SERP candidates (idempotent) and starts scoring the new ones right away. */
     async function ingestSerpPage(page: SerpCandidate[]): Promise<void> {
+      await searchGate();
       const parsed = page.map((serp) => {
         // The phone regex runs on the raw title + snippet exactly as Google returned them.
         const regexPhone = extractIndianMobile(`${serp.rawTitle} ${serp.snippet}`);
@@ -318,6 +377,7 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
     /** Saves one page of Cutshort hits and starts scoring them. Their resume text makes the free score much better informed. */
     async function ingestCutshortPage(hits: CutshortHit[]): Promise<void> {
       if (hits.length === 0) return;
+      await searchGate();
       const idByCutshortId = await upsertCutshortCandidates(
         hits.map((hit) => ({
           cutshortId: hit.talentCardId,
@@ -354,6 +414,7 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
 
       let params = buildCutshortSearch(job as JobDetails);
       for (let page = 1; searchesLeft > 0 && cutshort.found < batch.maxProfiles; page += 1) {
+        await searchGate();
         let result = await client.search(params, page);
         searchesLeft -= 1;
         if (page === 1 && result.hits.length === 0 && params.locations && searchesLeft > 0) {
@@ -399,38 +460,44 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
             maxPagesPerQuery: env.APIFY_MAX_PAGES_PER_QUERY,
             maxQueries: env.XRAY_MAX_QUERIES,
           });
-          const discovery = await provider.discover(job, batch.maxProfiles, ingestSerpPage);
+          const discovery = await provider.discover(job, batch.maxProfiles, ingestSerpPage, searchGate);
           log.info(
             { found: discovery.candidates.length, queries: discovery.queriesTried.length, perQuery: discovery.resultsPerQuery },
             "linkedin x-ray discovery done",
           );
         } catch (error) {
+          if (error instanceof SearchStopped) stopped = true;
+          else {
           firstError ??= error;
           log.warn({ err: error instanceof Error ? error.message : String(error) }, "linkedin search failed");
           if (useCutshort) sourceNotes.push(`LinkedIn search failed: ${error instanceof Error ? error.message.slice(0, 160) : "unknown error"}`);
+          }
         }
       }
 
-      if (useCutshort && env.CUTSHORT_API_KEY) {
+      if (useCutshort && env.CUTSHORT_API_KEY && !stopped) {
         try {
           cutshort.client = new CutshortClient({ apiKey: env.CUTSHORT_API_KEY, baseUrl: env.CUTSHORT_API_BASE_URL });
           await searchCutshort(cutshort.client);
           log.info({ found: cutshort.found }, "cutshort search done");
         } catch (error) {
+          if (error instanceof SearchStopped) stopped = true;
+          else {
           firstError ??= error;
           log.warn({ err: error instanceof Error ? error.message : String(error) }, "cutshort search failed");
           sourceNotes.push(`Cutshort search failed: ${error instanceof Error ? error.message.slice(0, 160) : "unknown error"}`);
+          }
         }
       }
 
-      if (profilesFound === 0) {
+      if (profilesFound === 0 && !stopped) {
         if (firstError) throw firstError;
         throw new Error("No profiles were found for this job. Try a more common title or skill, or a broader skill list.");
       }
     }
     log.info({ profilesFound, ...tiers }, "linkedin sourcing done");
 
-    if (profilesFound === 0 && scheduledMatchIds.size === 0) {
+    if (profilesFound === 0 && scheduledMatchIds.size === 0 && !stopped) {
       throw new Error("No usable LinkedIn profiles were found. Check that the URLs are public /in/ profile links.");
     }
   }
@@ -439,64 +506,8 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
   // allSettled: one broken background task must never stop the others from being awaited.
   await Promise.allSettled(backgroundWork);
 
-  // ---- 2b. LinkedIn only: the AI reviews the TOP candidates for real role fit (a few per call, token-cheap) ----
-  // Everyone was already scored for free. The free score only counts keywords, so the AI (Groq first, then Gemini)
-  // now reads the best AI_RESCORE_TOP_N against the full job description and judges whether each person is really
-  // the right kind of candidate. Its score replaces the free one for those people. If the AI fails, the free
-  // scores stay and the batch note says so.
+  // (Every candidate is judged individually by the AI against the JD and rubric when it is saved, so there is no separate "top N review" step any more.)
   const review = { tried: 0, done: 0 };
-  if (scrapeLinkedIn && env.AI_RESCORE_TOP_N > 0 && matcher.aiAvailable) {
-    const top = await listTopFreeScoredMatches(batch.id, env.AI_RESCORE_TOP_N);
-    const groups: PendingEvaluation[][] = [];
-    for (let start = 0; start < top.length; start += REVIEW_BATCH_SIZE) groups.push(top.slice(start, start + REVIEW_BATCH_SIZE));
-    review.tried = top.length;
-
-    await Promise.allSettled(
-      groups.map((group) =>
-        limit(async () => {
-          try {
-            const results = await matcher.evaluateBatch(job as JobDetails, group.map((item) => ({ id: item.matchId, profileText: item.profileText })));
-            for (const [matchId, result] of results) {
-              await markMatchCompleted(matchId, result);
-              review.done += 1;
-            }
-          } catch (error) {
-            log.warn({ err: error instanceof Error ? error.message : String(error), size: group.length }, "AI review failed, kept free scores");
-          }
-        }),
-      ),
-    );
-    log.info(review, "top candidates reviewed by AI");
-  }
-
-  // ---- 2c. Cutshort: unlock contact details for the best matches only (each unlock costs an irreversible credit) ----
-  if (cutshort.client && cutshort.found > 0 && env.CUTSHORT_MAX_UNLOCKS_PER_RUN > 0) {
-    try {
-      const usage = await cutshort.client.usage();
-      const credits = Math.min(env.CUTSHORT_MAX_UNLOCKS_PER_RUN, Math.max(0, usage.apiUnlocks.limit - usage.apiUnlocks.used));
-      if (credits === 0) cutshort.unlockFailed = "No Cutshort unlock credits are left in this billing cycle, so contact details were not fetched.";
-      const best = credits > 0 ? await listCutshortUnlockCandidates(batch.jobId, env.ENRICHMENT_MIN_SCORE, credits) : [];
-      for (const candidate of best) {
-        try {
-          const contact = await cutshort.client.candidate(candidate.cutshortId); // sequential on purpose
-          const phone = extractIndianMobile(contact.phone) ?? (contact.phone && contact.phone.replace(/\D/g, "").length >= 10 ? contact.phone.replace(/[^\d+]/g, "") : null);
-          await saveCutshortContact(candidate.candidateId, { name: contact.displayName, email: contact.email, phone });
-        } catch (error) {
-          if (error instanceof CutshortError && error.isUnlockLimit) {
-            cutshort.unlockFailed = "Cutshort unlock credits are used up for this cycle, so some top candidates have no contact details yet.";
-            break;
-          }
-          throw error;
-        }
-      }
-      log.info({ credits, unlocked: best.length }, "cutshort unlocks done");
-    } catch (error) {
-      cutshort.unlockFailed ||= `Cutshort contact details could not be fetched: ${error instanceof Error ? error.message.slice(0, 160) : "unknown error"}`;
-      log.warn({ err: error instanceof Error ? error.message : String(error) }, "cutshort unlock failed");
-    }
-  }
-
-  // ---- 3. finish ----
   const total = scheduledMatchIds.size;
   if (total > 0 && scoring.failed === total) {
     // Every call failed: almost certainly a setup or outage problem, not bad candidates.
@@ -506,8 +517,9 @@ async function executeBatch(batch: ClaimedBatch, log: Logger): Promise<void> {
 
   // The note is shown to the recruiter, so it only ever reports a PROBLEM. Statistics go to the log.
   const notes: string[] = [];
+  if (stopped) notes.push(`Stopped by you after ${profilesFound} candidate${profilesFound === 1 ? "" : "s"}. They are kept and scored; start a new run to search more.`);
   if (scoring.quick > 0) {
-    notes.push(`${scoring.quick} of ${total} candidates got a Quick score (offline keyword match) because the AI was unavailable: ${scoring.quickReason}`);
+    notes.push(`${scoring.quick} of ${total} candidates got the rule-based Quick score because the AI was unavailable: ${scoring.quickReason}`);
   }
   if (review.tried > 0 && review.done < review.tried) {
     notes.push(`The AI could not review ${review.tried - review.done} of the top ${review.tried} candidates, so they keep their automatic score.`);

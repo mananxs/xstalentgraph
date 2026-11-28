@@ -7,7 +7,7 @@ import { judgeCandidate } from "./aiJudge";
 import type { CandidateFacts, EvaluationResult } from "./evaluate";
 import { factsFromCandidateRow } from "./facts";
 import { findIdentity, normEmail, normPhone, type IdentityProbe, type MatchReason } from "./identity";
-import { defaultRubric, sanitizeRubric, type RubricData } from "./rubric";
+import { defaultRubric, isLegacyRubric, sanitizeRubric, upgradeRubric, type RubricData } from "./rubric";
 import { isShortlistedStage, isStage, STAGES, type Stage } from "./stages";
 
 export const ENGINE = "xs-hunt-standard";
@@ -25,7 +25,20 @@ const asData = (dimensions: unknown, custom: unknown): RubricData => ({ dimensio
 /** The job's current rubric. The first call creates version 1 from what the JD says. */
 export async function ensureRubric(job: JobDetails, actorId?: string | null): Promise<ActiveRubric> {
   const latest = await prisma.evaluationRubric.findFirst({ where: { jobId: job.id }, orderBy: { version: "desc" } });
-  if (latest) return { id: latest.id, version: latest.version, data: asData(latest.dimensions, latest.custom) };
+  if (latest) {
+    const data = asData(latest.dimensions, latest.custom);
+    if (!isLegacyRubric(data)) return { id: latest.id, version: latest.version, data };
+    // A rubric of the previous format: save the standard one as the next version (older versions and their evaluations are kept).
+    const raw = await prisma.jobDescription.findUnique({ where: { id: job.id }, select: { rawText: true } });
+    const upgraded = upgradeRubric(data, { ...job, rawText: raw?.rawText ?? null });
+    try {
+      const created = await prisma.evaluationRubric.create({ data: { jobId: job.id, version: latest.version + 1, dimensions: upgraded.dimensions as unknown as Prisma.InputJsonValue, custom: upgraded.custom as unknown as Prisma.InputJsonValue, notes: "Upgraded to the standard rubric (technical skills 30, experience 25, projects 15, education 10, tools 10, keywords 5, domain 5). Re-score to apply.", createdById: actorId ?? null } });
+      return { id: created.id, version: created.version, data: upgraded };
+    } catch {
+      const again = await prisma.evaluationRubric.findFirstOrThrow({ where: { jobId: job.id }, orderBy: { version: "desc" } });
+      return { id: again.id, version: again.version, data: asData(again.dimensions, again.custom) };
+    }
+  }
   const raw = await prisma.jobDescription.findUnique({ where: { id: job.id }, select: { rawText: true } });
   const data = defaultRubric({ ...job, rawText: raw?.rawText ?? null });
   try {

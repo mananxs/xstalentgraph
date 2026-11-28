@@ -168,7 +168,7 @@ export function JobWorkspace({ jobId }: { jobId: string }) {
         </Card>
       )}
 
-      {(ingestion.isActive || ingestion.batch?.status === "failed") && <IngestionStatus batch={ingestion.batch} isActive={ingestion.isActive} isStarting={ingestion.isStarting} failedMatchCount={0} quickScoreCount={0} onStart={() => setClassic(true)} onRetryFailed={() => void ingestion.start({ rescoreOnly: true })} />}
+      {(ingestion.isActive || ingestion.batch?.status === "failed") && <IngestionStatus batch={ingestion.batch} isActive={ingestion.isActive} isStarting={ingestion.isStarting} failedMatchCount={0} quickScoreCount={0} onStart={() => setClassic(true)} onRetryFailed={() => void ingestion.start({ rescoreOnly: true })} onControl={(a) => void ingestion.control(a)} />}
 
       {error && <Notice>{error}</Notice>}
 

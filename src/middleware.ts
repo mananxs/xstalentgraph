@@ -3,8 +3,8 @@ import { SESSION_COOKIE, verifySession } from "@/server/session";
 
 /** Sends visitors without a valid login cookie to /login. API routes answer 401 on their own; /, /login and /api/ext are public. */
 export async function middleware(request: NextRequest) {
-  if (process.env.OPEN_ACCESS === "true") return NextResponse.next();
-  if (process.env.DEV_AUTH === "true" && process.env.NODE_ENV !== "production") return NextResponse.next();
+  if (/^(true|1|yes|on)$/i.test((process.env.OPEN_ACCESS ?? "").trim())) return NextResponse.next();
+  if (/^(true|1|yes|on)$/i.test((process.env.DEV_AUTH ?? "").trim()) && process.env.NODE_ENV !== "production") return NextResponse.next();
   let signedIn = false;
   try {
     signedIn = (await verifySession(request.cookies.get(SESSION_COOKIE)?.value)) !== null;

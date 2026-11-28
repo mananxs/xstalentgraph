@@ -107,5 +107,21 @@ export function useIngestion(jobId: string | null, onProgress: () => void) {
     [jobId],
   );
 
-  return { batch, error, isActive, isStarting, start };
+  /** Pause, resume or stop the current run (the play / pause / stop buttons). The batch is refreshed from the server's answer. */
+  const control = useCallback(
+    async (action: "pause" | "resume" | "stop") => {
+      if (!jobId || !batchId) return;
+      try {
+        const response = await api.controlBatch(jobId, batchId, action);
+        setError(null);
+        setBatch(response.batch);
+        onProgressRef.current();
+      } catch (caught) {
+        setError(toMessage(caught));
+      }
+    },
+    [jobId, batchId],
+  );
+
+  return { batch, error, isActive, isStarting, start, control };
 }

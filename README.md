@@ -1,7 +1,7 @@
 # XS-Hunt
 
 > **XS-Hunt** is a recruiting workspace: it controls sourcing from Naukri Resdex through your own signed-in browser (the XS-Hunt Chrome
-> extension), scores candidates on a seven-dimension rubric, keeps approved profiles and original resumes, and runs an eleven-stage ATS
+> extension), scores candidates with AI on a weighted standard rubric (skills 30, experience 25, projects 15, education 10, tools 10, keywords 5, domain 5), keeps approved profiles and original resumes, and runs an eleven-stage ATS
 > pipeline. **Architecture, protocol, setup and limits: [docs/XS-HUNT.md](docs/XS-HUNT.md).** The extension source is in `extension/`.
 >
 > Quick start: `npm install`, `.env` from `.env.example` (add the Google client id/secret for company sign-in), `npx prisma migrate deploy`,

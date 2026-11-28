@@ -7,6 +7,7 @@ const batchSelect = {
   status: true,
   maxProfiles: true,
   source: true,
+  control: true,
   profilesFound: true,
   candidatesUpserted: true,
   embeddedCount: true,
@@ -127,6 +128,29 @@ export async function incrementBatchResult(batchId: string, result: "evaluated" 
     where: { id: batchId },
     data: result === "evaluated" ? { evaluatedCount: { increment: 1 } } : { failedCount: { increment: 1 } },
   });
+}
+
+export type BatchControl = "run" | "pause" | "stop";
+
+/** What the recruiter last asked for (run / pause / stop). */
+export async function getBatchControl(batchId: string): Promise<BatchControl> {
+  const row = await prisma.ingestionBatch.findUnique({ where: { id: batchId }, select: { control: true } });
+  return row?.control === "pause" || row?.control === "stop" ? row.control : "run";
+}
+
+/**
+ * Sets run / pause / stop on a batch of this job that is still queued or running. A stopped batch cannot be resumed; a finished one is left alone.
+ * @returns false when there is no such active batch.
+ */
+export async function setBatchControl(batchId: string, jobId: string, control: BatchControl): Promise<boolean> {
+  const where = { id: batchId, jobId, status: { in: ["queued", "running"] as Array<"queued" | "running"> }, ...(control === "stop" ? {} : { control: { not: "stop" } }) };
+  const result = await prisma.ingestionBatch.updateMany({ where, data: { control } });
+  return result.count > 0;
+}
+
+/** Keeps a paused batch "alive" so the worker does not treat it as stuck and put it back in the queue. */
+export async function touchBatch(batchId: string): Promise<void> {
+  await prisma.ingestionBatch.update({ where: { id: batchId }, data: { updatedAt: new Date() } }).catch(() => undefined);
 }
 
 /** Marks the batch completed. `note` (optional) is shown in the UI, e.g. why some candidates got a Quick score. */

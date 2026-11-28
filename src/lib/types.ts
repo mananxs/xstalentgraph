@@ -102,6 +102,8 @@ export interface MatchDto {
 export interface BatchDto {
   id: string;
   status: BatchStatus;
+  /** What the recruiter asked for: run | pause | stop. */
+  control: "run" | "pause" | "stop";
   maxProfiles: number;
   profilesFound: number;
   candidatesUpserted: number;

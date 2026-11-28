@@ -8,7 +8,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen bg-white">
       <Sidebar />
       <main className="min-w-0 flex-1 bg-white">
-        {process.env.OPEN_ACCESS === "true" && (
+        {/^(true|1|yes|on)$/i.test((process.env.OPEN_ACCESS ?? "").trim()) && (
           <p role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800">
             Open access is ON: there is no login, so anyone with this URL can see every candidate and resume. Set OPEN_ACCESS=false to require sign-in.
           </p>

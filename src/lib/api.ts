@@ -83,6 +83,7 @@ export const api = {
 
   getLatestBatch: (jobId: string) => request<{ batch: BatchDto | null }>(`/api/jobs/${jobId}/batches`),
 
+  controlBatch: (jobId: string, batchId: string, action: "pause" | "resume" | "stop") => request<{ batch: BatchDto }>(`/api/jobs/${jobId}/batches/${batchId}`, { method: "PATCH", body: JSON.stringify({ action }) }),
   getBatch: (jobId: string, batchId: string) => request<{ batch: BatchDto }>(`/api/jobs/${jobId}/batches/${batchId}`),
 
   /** rescoreOnly = skip the GitHub search and only score candidates that are unscored, failed or Quick-scored. */

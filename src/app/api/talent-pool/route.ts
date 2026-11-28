@@ -1,3 +1,4 @@
+import { profileLinks } from "@/server/hunt/queries";
 import { jobWhere as jobScope } from "@/server/access";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -23,12 +24,12 @@ export async function GET(request: Request): Promise<Response> {
       prisma.candidate.count({ where }),
       prisma.candidate.findMany({
         where, take: limit, skip: offset, orderBy: { updatedAt: "desc" },
-        select: { id: true, name: true, login: true, headline: true, location: true, experienceYears: true, primarySource: true, sources: true, skills: true, _count: { select: { resumes: true } }, matchScores: { where: { job: jobScope(recruiter) }, select: { id: true, score: true, tier: true, stage: true, job: { select: { id: true, title: true } } } } },
+        select: { profileUrl: true, sourceRecords: { select: { source: true, profileUrl: true }, take: 6 }, id: true, name: true, login: true, headline: true, location: true, experienceYears: true, primarySource: true, sources: true, skills: true, _count: { select: { resumes: true } }, matchScores: { where: { job: jobScope(recruiter) }, select: { id: true, score: true, tier: true, stage: true, job: { select: { id: true, title: true } } } } },
       }),
     ]);
     return NextResponse.json({
       total,
-      candidates: rows.map((c) => ({ id: c.id, name: c.name ?? c.login, headline: c.headline, location: c.location, experienceYears: c.experienceYears, primarySource: c.primarySource, sources: c.sources, skills: c.skills.slice(0, 8), hasResume: c._count.resumes > 0, jobs: c.matchScores.map((m) => ({ matchId: m.id, jobId: m.job.id, jobTitle: m.job.title, score: m.score, tier: m.tier, stage: m.stage })) })),
+      candidates: rows.map((c) => ({ links: profileLinks(c), id: c.id, name: c.name ?? c.login, headline: c.headline, location: c.location, experienceYears: c.experienceYears, primarySource: c.primarySource, sources: c.sources, skills: c.skills.slice(0, 8), hasResume: c._count.resumes > 0, jobs: c.matchScores.map((m) => ({ matchId: m.id, jobId: m.job.id, jobTitle: m.job.title, score: m.score, tier: m.tier, stage: m.stage })) })),
     });
   });
 }

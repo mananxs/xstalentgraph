@@ -59,16 +59,32 @@ pgvector indexes.
 **Every candidate card and profile is scored by the AI** (`src/server/hunt/aiJudge.ts`), one candidate per call, at temperature 0: it reads the JD
 and the candidate's text and gives each rubric dimension a 0-100 score with a one-line reason and quoted evidence (quotes not found in the
 candidate's text are dropped; an answer about a different name is refused). `null` = no evidence = missing information, not a bad score.
-The total is the rubric-weighted mean of those scores, with the same must-have gate and tiers as before, so weights and targets edited in the
-rubric still decide the result. Your own Groq / Gemini key is used first, then the platform's. If no AI is available, or the answer cannot be
+The total is the rubric-weighted mean of those scores over **every scored factor**; a factor with no evidence earns 0, so one strong match
+(e.g. only the job title) can never make a candidate look like a perfect fit. The same must-have gate applies. `evidenceCoverage` says how
+much of the rubric the profile proves and sets the tier (Provisional / Needs more info). Weights and targets edited in the rubric decide the result.
+
+**The standard rubric** (editable per job, not rigid): technical skills match 30, relevant work experience 25, project relevance 15, required
+qualifications / education 10, tools, technologies & frameworks 10, keywords & ATS compatibility 5, domain / industry knowledge 5 = 100.
+Compensation, notice period and location are optional *flags* (weight 0): shown on every candidate, counted only if you give them a weight.
+Jobs created before this change are upgraded automatically to the next rubric version (your skills, years, titles, budget, notice, locations,
+education and custom criteria carry over); press Re-score to apply it to existing candidates. Your own Groq / Gemini key is used first, then the platform's. If no AI is available, or the answer cannot be
 trusted, the card is scored by the offline rule engine and **labelled "Quick score (rules)"**, never passed off as AI. A card is judged once per
 rubric version (cached); a rule-scored card is retried with the AI after 10 minutes. This costs AI quota for every captured card.
 It will be close to what a general chatbot says about the same CV, not identical.
 
-The rule engine (fallback): the 7-dimension evaluator (`src/server/hunt/evaluate.ts`): skills, experience, compensation, availability, location, education,
-career background, plus custom criteria. Each dimension is `confirmed`, `mismatch`, `missing` (excluded from the score) or `skipped`
-(the rubric sets no requirement). Tiers: Strong (75+), Potential (55-74), Weak, Provisional (<70% of the rubric had data), Needs More Info
+The rule engine (fallback) scores the same factors offline (`src/server/hunt/evaluate.ts`) plus custom criteria. Each factor is
+`confirmed`, `mismatch`, `missing` (earns 0 and is listed under "not shown") or `skipped` (the rubric sets no requirement: left out of the total). Tiers: Strong (75+), Potential (55-74), Weak, Provisional (<70% of the rubric had data), Needs More Info
 (<40%). Recruiter overrides keep the AI result and require a reason.
+
+## Search runs: play / pause / stop, and profile links
+* **LinkedIn / GitHub / Cutshort runs** have **Pause, Resume and Stop** buttons next to the progress (job page and classic dashboard). Pause holds the
+  run before the next paid search page and before the next candidate is scored, and keeps it alive until you resume. Stop ends the search, keeps
+  and scores everything already found, and records "Stopped by you" in the run note. (Naukri sourcing has its own Start / Pause / Resume / Stop.)
+  Column `ingestion_batches.control` (migration `20261202000000_batch_control`); API `PATCH /api/jobs/:id/batches/:batchId {action}`.
+* **Every candidate saved by a run** (LinkedIn, GitHub, Cutshort) is scored the same way as Naukri cards: AI against the JD and the standard
+  rubric, labelled rule-based Quick score if no AI is available. The old keyword-only "top N review" step is gone.
+* **View Profile** on a candidate card (and in the drawer and talent pool) opens the person's real profile (LinkedIn first, then Naukri / GitHub)
+  in a new tab; **Details** opens the full evaluation in XS-Hunt. No link is shown when none was captured.
 
 ## Sign-in, roles and private data
 * **Google sign-in, company accounts only.** Set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (redirect URI `https://YOUR-SITE/api/auth/google/callback`).

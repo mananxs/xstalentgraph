@@ -33,25 +33,51 @@ describe("evaluateCandidate", () => {
     assert.deepEqual(r.missingInfo, []);
   });
 
-  it("an UNKNOWN expected CTC is missing information, never a mismatch", () => {
+  it("an UNKNOWN expected CTC is missing information, never a mismatch (and it is only a flag by default)", () => {
     const r = evaluateCandidate(scoringJob, rubric, { ...strong, expectedCtcLpa: null, currentCtcLpa: null });
     assert.equal(r.dimensions.compensation!.status, "missing");
-    assert.ok(r.missingInfo.includes("Compensation"));
     assert.ok(!r.concerns.some((c) => c.startsWith("Compensation")));
     assert.ok(r.total >= 70, `score must not drop because CTC is unknown: ${r.total}`);
   });
 
-  it("a KNOWN expectation above budget IS a confirmed mismatch", () => {
-    const r = evaluateCandidate(scoringJob, rubric, { ...strong, expectedCtcLpa: 50 });
-    assert.equal(r.dimensions.compensation!.status, "mismatch");
-    assert.ok(r.concerns.some((c) => c.startsWith("Compensation")));
+  it("a KNOWN expectation above budget is a flagged mismatch that does not change the score unless it is given a weight", () => {
+    const flagged = evaluateCandidate(scoringJob, rubric, { ...strong, expectedCtcLpa: 50 });
+    assert.equal(flagged.dimensions.compensation!.status, "mismatch");
+    assert.ok(flagged.concerns.some((c) => c.startsWith("Compensation fit") && c.includes("flag only")));
+    assert.equal(flagged.total, evaluateCandidate(scoringJob, rubric, strong).total);
+    const weighted = sanitizeRubric({ dimensions: [{ key: "compensation", weight: 20, enabled: true, config: { maxLpa: 30 } }] }, rubric);
+    assert.ok(evaluateCandidate(scoringJob, weighted, { ...strong, expectedCtcLpa: 50 }).total < flagged.total);
+  });
+
+  it("the standard rubric: seven scored factors worth 100, three optional flags worth 0", () => {
+    const scored = rubric.dimensions.filter((d) => d.enabled);
+    assert.deepEqual(scored.map((d) => [d.key, d.weight]), [["skills", 30], ["experience", 25], ["projects", 15], ["education", 10], ["tools", 10], ["keywords", 5], ["domain", 5]]);
+    assert.equal(scored.reduce((s, d) => s + d.weight, 0), 100);
+    assert.deepEqual(rubric.dimensions.filter((d) => !d.enabled).map((d) => d.key), ["compensation", "availability", "location"]);
+  });
+
+  it("ONE matching factor can never make a candidate look like a perfect fit (the 90-from-career-alone bug)", () => {
+    // Exactly the target title and nothing else: no skills, no years, no projects, no tools, no education.
+    const titleOnly = evaluateCandidate(scoringJob, rubric, { skills: [], role: "Senior SRE", expYears: null, currentCtcLpa: null, expectedCtcLpa: null, noticeDays: null, text: "Senior SRE" });
+    assert.ok(titleOnly.total <= 30, `one factor must not carry the score: ${titleOnly.total}`);
+    assert.notEqual(titleOnly.tier, "strong");
+    assert.ok(titleOnly.missingInfo.length >= 4, "everything unproven is listed as missing");
+    // Every factor shown: strong fit.
+    assert.ok(evaluateCandidate(scoringJob, rubric, strong).total > titleOnly.total + 40);
+  });
+
+  it("a candidate who proves more factors scores higher than one who proves fewer", () => {
+    const some = evaluateCandidate(scoringJob, rubric, { ...strong, education: undefined, text: "SRE at Acme. Kubernetes, Go." });
+    const all = evaluateCandidate(scoringJob, rubric, strong);
+    assert.ok(all.total > some.total);
+    assert.ok(all.evidenceCoverage > some.evidenceCoverage);
   });
 
   it("a card with little data is Needs More Info / Provisional instead of a confident score", () => {
     const sparse = evaluateCandidate(scoringJob, rubric, { skills: [], expYears: null, currentCtcLpa: null, expectedCtcLpa: null, noticeDays: null, text: "" });
     assert.equal(sparse.tier, "needs_info");
-    const partial = evaluateCandidate(scoringJob, rubric, { ...strong, expectedCtcLpa: null, currentCtcLpa: null, noticeDays: null, education: undefined, location: undefined });
-    assert.equal(partial.tier, "provisional");
+    const partial = evaluateCandidate(scoringJob, rubric, { ...strong, education: undefined, skills: [], expYears: null, text: "SRE at Acme." });
+    assert.ok(["provisional", "needs_info"].includes(partial.tier), partial.tier);
   });
 
   it("a wrong city is a mismatch; remote jobs forgive it", () => {
@@ -78,7 +104,38 @@ describe("evaluateCandidate", () => {
     const r = sanitizeRubric({ dimensions: [{ key: "skills", weight: 9999, enabled: true, config: { mustHave: ["Go", " "] } }, { key: "bogus", weight: 5 }], custom: [{ name: "", keywords: ["x"] }] }, rubric);
     assert.equal(r.dimensions.find((d) => d.key === "skills")!.weight, 100);
     assert.deepEqual(r.dimensions.find((d) => d.key === "skills")!.config.mustHave, ["Go"]);
-    assert.equal(r.dimensions.length, 7);
+    assert.equal(r.dimensions.length, 10);
     assert.equal(r.custom.length, 0);
+  });
+});
+
+describe("legacy rubric upgrade", () => {
+  it("upgrades the previous seven-dimension format to the standard one and keeps what the recruiter set", async () => {
+    const { isLegacyRubric, upgradeRubric } = await import("./rubric");
+    const legacy = {
+      dimensions: [
+        { key: "skills", label: "Skills", weight: 30, enabled: true, config: { mustHave: ["Go", "Rust"], nice: ["Terraform"] } },
+        { key: "experience", label: "Experience", weight: 20, enabled: true, config: { minYears: 8, maxYears: 12 } },
+        { key: "compensation", label: "Compensation", weight: 10, enabled: true, config: { maxLpa: 40 } },
+        { key: "availability", label: "Availability", weight: 10, enabled: true, config: { maxNoticeDays: 45 } },
+        { key: "location", label: "Location", weight: 10, enabled: true, config: { locations: ["Pune"], remote: true } },
+        { key: "education", label: "Education", weight: 5, enabled: true, config: { required: ["B.Tech"] } },
+        { key: "career", label: "Career Background", weight: 15, enabled: true, config: { targetTitles: ["Staff SRE"], industries: ["Fintech"] } },
+      ],
+      custom: [{ name: "On-call", weight: 5, keywords: ["pager"] }],
+    } as unknown as ReturnType<typeof defaultRubric>;
+    assert.equal(isLegacyRubric(legacy), true);
+    assert.equal(isLegacyRubric(rubric), false);
+    const up = upgradeRubric(legacy, job);
+    assert.equal(isLegacyRubric(up), false);
+    const get = (k: string) => up.dimensions.find((d) => d.key === k)!;
+    assert.deepEqual(get("skills").config.mustHave, ["Go", "Rust"]);
+    assert.equal(get("experience").config.minYears, 8);
+    assert.deepEqual(get("experience").config.targetTitles, ["Staff SRE"]);
+    assert.deepEqual(get("domain").config.industries, ["Fintech"]);
+    assert.equal(get("compensation").config.maxLpa, 40);
+    assert.deepEqual(get("location").config.locations, ["Pune"]);
+    assert.equal(up.custom.length, 1);
+    assert.equal(up.dimensions.filter((d) => d.enabled).reduce((s, d) => s + d.weight, 0), 100);
   });
 });

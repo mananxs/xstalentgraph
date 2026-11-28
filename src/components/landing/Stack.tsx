@@ -6,7 +6,7 @@ import { SplitHeading, Tilt, usePinned } from "./kinetic";
 
 const CARDS = [
   { icon: Search, t: "Sourcing agent", d: "Finds profiles that fit the brief and keeps the pool fresh.", x: -260, y: -40, r: -6 },
-  { icon: Star, t: "Scoring agent", d: "Grades every candidate on a seven-dimension rubric.", x: 0, y: 30, r: 2 },
+  { icon: Star, t: "Scoring agent", d: "Grades every candidate on a weighted scorecard.", x: 0, y: 30, r: 2 },
   { icon: Users, t: "Pipeline agent", d: "Keeps shortlists and stages tidy, with you in the loop.", x: 260, y: -30, r: 6 },
 ] as const;
 

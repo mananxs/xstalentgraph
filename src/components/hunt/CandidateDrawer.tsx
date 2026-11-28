@@ -81,6 +81,15 @@ export function CandidateDrawer({ matchId, candidateId, initialTab = "overview",
               {detail?.evaluation && <TierBadge tier={detail.evaluation.tier} />}
               {detail && <Badge tone="indigo">{STAGE_LABEL[detail.match.stage as keyof typeof STAGE_LABEL] ?? detail.match.stage}</Badge>}
             </div>
+            {(detail?.links ?? []).length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {detail!.links!.map((l) => (
+                  <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-xs font-medium text-white hover:bg-accent-strong">
+                    <ExternalLink className="size-3.5" aria-hidden="true" /> Open on {l.source === "linkedin" ? "LinkedIn" : l.source === "naukri" ? "Naukri" : l.source === "github" ? "GitHub" : l.source}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-zinc-600 hover:bg-zinc-100">
             <X className="size-5" aria-hidden="true" />

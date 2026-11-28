@@ -8,16 +8,19 @@ import { ChipInput } from "../ChipInput";
 import { Badge, Button, Card, inputClass, Notice, Skeleton } from "./ui";
 
 const HELP: Record<string, string> = {
-  skills: "Must-have and nice-to-have skills, read from the JD.",
-  experience: "Minimum and maximum years of experience.",
-  compensation: "Budget in LPA. With no budget, this dimension is not scored. An unknown expectation is missing information, not a fail.",
-  availability: "Longest acceptable notice period in days.",
-  location: "Cities you can hire in; remote forgives a different city.",
-  education: "Accepted degrees. With none listed, this dimension is not scored.",
-  career: "Target job titles and industries; also counts demonstrated impact.",
+  skills: "Technical skills match: must-have and nice-to-have skills, read from the JD.",
+  experience: "Relevant work experience: years against the requirement, and how relevant past roles are to the target titles.",
+  projects: "Project relevance: projects and achievements that touch this job's skills, with measurable results. Nothing described counts as no evidence.",
+  tools: "Tools, technologies and frameworks the job asks for, beyond the must-have skills.",
+  keywords: "Keywords and ATS compatibility: how many of these keywords appear in the profile.",
+  domain: "Domain / industry knowledge. With no industries listed, the job's own industry is used.",
+  compensation: "Optional flag (weight 0 by default). Budget in LPA. Give it a weight to count it in the score.",
+  availability: "Optional flag (weight 0 by default). Longest acceptable notice period in days.",
+  location: "Optional flag (weight 0 by default). Cities you can hire in; remote forgives a different city.",
+  education: "Required qualifications: accepted degrees. With none listed, this factor is left out of the score.",
 };
 
-/** The seven-dimension rubric of a job: AI-extracted from the JD, editable weights and criteria, versioned, optional re-scoring. */
+/** The standard rubric of a job (seven scored factors, three optional flags): AI-extracted from the JD, editable weights and criteria, versioned, optional re-scoring. */
 export function RubricEditor({ jobId, canEdit, onSaved }: { jobId: string; canEdit: boolean; onSaved: () => void }) {
   const [data, setData] = useState<RubricData | null>(null);
   const [version, setVersion] = useState(0);
@@ -96,6 +99,7 @@ export function RubricEditor({ jobId, canEdit, onSaved }: { jobId: string; canEd
                     {d.key === "experience" && (<>
                       <Num label="Minimum years" value={numVal(cfg("experience").minYears)} onChange={(s) => setCfg("experience", { minYears: num(s) })} />
                       <Num label="Maximum years" value={numVal(cfg("experience").maxYears)} onChange={(s) => setCfg("experience", { maxYears: num(s) })} />
+                      <div className="sm:col-span-2"><ChipInput label="Target job titles" values={list(d.config.targetTitles)} onChange={(v) => setCfg("experience", { targetTitles: v })} placeholder="Add title" /></div>
                     </>)}
                     {d.key === "compensation" && (<>
                       <Num label="Budget minimum (LPA)" value={numVal(cfg("compensation").minLpa)} onChange={(s) => setCfg("compensation", { minLpa: num(s) })} />
@@ -107,10 +111,9 @@ export function RubricEditor({ jobId, canEdit, onSaved }: { jobId: string; canEd
                       <label className="flex items-center gap-2 self-end text-sm text-zinc-700"><input type="checkbox" className="accent-[#4f46e5]" disabled={!canEdit} checked={Boolean(d.config.remote)} onChange={(e) => setCfg("location", { remote: e.target.checked })} /> Remote work is allowed</label>
                     </>)}
                     {d.key === "education" && <ChipInput label="Accepted education" values={list(d.config.required)} onChange={(v) => setCfg("education", { required: v })} placeholder="e.g. B.Tech" />}
-                    {d.key === "career" && (<>
-                      <ChipInput label="Target titles" values={list(d.config.targetTitles)} onChange={(v) => setCfg("career", { targetTitles: v })} placeholder="Add title" />
-                      <ChipInput label="Industries (optional)" values={list(d.config.industries)} onChange={(v) => setCfg("career", { industries: v })} placeholder="Add industry" />
-                    </>)}
+                    {d.key === "tools" && <div className="sm:col-span-2"><ChipInput label="Tools, technologies and frameworks" values={list(d.config.tools)} onChange={(v) => setCfg("tools", { tools: v })} placeholder="Add tool" /></div>}
+                    {d.key === "keywords" && <div className="sm:col-span-2"><ChipInput label="ATS keywords" values={list(d.config.keywords)} onChange={(v) => setCfg("keywords", { keywords: v })} placeholder="Add keyword" /></div>}
+                    {d.key === "domain" && <div className="sm:col-span-2"><ChipInput label="Industries (optional)" values={list(d.config.industries)} onChange={(v) => setCfg("domain", { industries: v })} placeholder="Add industry" /></div>}
                   </div>
                 )}
               </Card>
@@ -124,7 +127,7 @@ export function RubricEditor({ jobId, canEdit, onSaved }: { jobId: string; canEd
           <h3 className="text-sm font-semibold text-zinc-950">Custom criteria</h3>
           {canEdit && data.custom.length < 10 && <Button size="sm" onClick={() => setData({ ...data, custom: [...data.custom, { name: "", weight: 10, keywords: [] }] })}><Plus className="size-3.5" aria-hidden="true" /> Add criterion</Button>}
         </div>
-        {data.custom.length === 0 && <p className="text-sm text-zinc-500">None. Add something the standard seven do not cover, e.g. &quot;On-call experience&quot; with keywords on-call, pager.</p>}
+        {data.custom.length === 0 && <p className="text-sm text-zinc-500">None. Add something the standard factors do not cover, e.g. &quot;On-call experience&quot; with keywords on-call, pager.</p>}
         {data.custom.map((c, i) => (
           <div key={i} className="grid gap-2 rounded-lg border border-zinc-200 p-3 sm:grid-cols-[1fr_90px_auto]">
             <input className={inputClass} placeholder="Name" value={c.name} disabled={!canEdit} onChange={(e) => setData({ ...data, custom: data.custom.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} aria-label="Criterion name" />
